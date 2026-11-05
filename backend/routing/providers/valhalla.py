@@ -1,7 +1,7 @@
 """Valhalla routing client (public FOSSGIS instance by default).
 
-Fair use of the public server: requests carry an identifying User-Agent, only one request is in
-flight at a time, and identical trips are answered from a short-lived cache.
+Fair use of the public server: requests carry an identifying User-Agent and X-Client-Id, only one
+request is in flight at a time, and identical trips are answered from a short-lived cache.
 """
 
 from __future__ import annotations
@@ -60,6 +60,7 @@ class ValhallaProvider:
                 "POST",
                 f"{self.base_url}/route",
                 json=body,
+                headers={"X-Client-Id": settings.VALHALLA_CLIENT_ID},
                 provider=PROVIDER,
                 unavailable_code="ROUTING_UNAVAILABLE",
                 timeout_code="ROUTING_TIMEOUT",

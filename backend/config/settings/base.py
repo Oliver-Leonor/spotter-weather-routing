@@ -91,6 +91,9 @@ CORS_ALLOW_CREDENTIALS = False
 ROUTING_PROVIDER = os.environ.get("ROUTING_PROVIDER", "valhalla")
 VALHALLA_BASE_URL = os.environ.get("VALHALLA_BASE_URL", "https://valhalla1.openstreetmap.de")
 VALHALLA_COSTING = os.environ.get("VALHALLA_COSTING", "auto")
+# Sent as X-Client-Id, which the public Valhalla server asks end-user apps to provide. In
+# production set it to the app's domain.
+VALHALLA_CLIENT_ID = os.environ.get("VALHALLA_CLIENT_ID", "stormroute")
 OPEN_METEO_BASE_URL = os.environ.get("OPEN_METEO_BASE_URL", "https://api.open-meteo.com")
 OPEN_METEO_GEOCODING_URL = os.environ.get(
     "OPEN_METEO_GEOCODING_URL", "https://geocoding-api.open-meteo.com"

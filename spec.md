@@ -645,8 +645,8 @@ Risks and mitigations:
 | 1 | Project foundation and risk engine | Merged (squash, `5265147`) | 2.0 h | 0.5 h |
 | 2 | Routing, weather, recommendation backend | Merged (squash, `14b4a05`) | 4.0 h | 0.7 h |
 | 3 | React dashboard and interactive map | Merged (squash, `c52e9c7`) | 3.5 h | 0.6 h |
-| 4 | Weather heatmap and forecast slider | Ready for Codex Review (round 2) | 2.5 h | 0.3 h |
-| 5 | Production deployment and submission prep | Not Started | 2.5 h | |
+| 4 | Weather heatmap and forecast slider | Merged (squash, `b761b38`) | 2.5 h | 0.3 h |
+| 5 | Production deployment and submission prep | Ready for Codex Review (deployed and verified) | 2.5 h | 0.5 h |
 | | Reserve for review fixes and verification | | 1.0 h | |
 | | **Total** | | **16.0 h** | |
 
@@ -855,7 +855,9 @@ mobile), accessibility pass (labels, focus, keyboard slider).
 Acceptance: slider changes the visualization with no network calls (verified in Playwright by
 counting requests); smooth interaction; e2e suite green at both widths.
 
-**Status: Ready for Codex Review** (2026-11-05). Branch `feat/pr4-heatmap-slider`.
+**Status: Merged** (2026-11-05, squash commit `b761b38`; the Codex re-review of `c7796e9` found no
+issues). PR: https://github.com/Oliver-Leonor/spotter-weather-routing/pull/4 (branch
+`feat/pr4-heatmap-slider`).
 
 Implementation summary:
 - Corridor heatmap (`features/heatmap/heatmapData.ts`, map layer in `RouteMap.tsx`): one GeoJSON
@@ -917,6 +919,60 @@ verification (`docs/VERIFICATION.md`), README (all 12 sections of the brief), sc
 Acceptance: hosted app verified end to end against the production backend; all checklist items in
 section 16 checked or explicitly reported.
 
+**Status: Ready for Codex Review** (2026-11-05). Branch `feat/pr5-deploy-docs`. **Both applications
+are deployed to production and verified.**
+
+- Frontend: https://stormroute-three.vercel.app (Vercel project `stormroute`)
+- Backend: https://stormroute-api-navy.vercel.app (Vercel project `stormroute-api`)
+- Account `oliverleonor90`, personal scope, Hobby plan. No paid resource.
+
+Sequence on 2026-11-05: Oliver approved the deployment on two conditions (notify the Valhalla
+maintainers first; make the README's AI disclosure precise). The README was corrected. Oliver
+posted the usage notice himself (https://github.com/valhalla/valhalla/discussions/6465); it was checked to be authored by `Oliver-Leonor` and
+to carry the agreed wording. The frontend was then deployed to learn its domain, the backend's
+`CORS_ALLOWED_ORIGINS`, `VALHALLA_CLIENT_ID` and `ALLOW_FIXTURE_MODE` were set, and the backend
+was deployed.
+
+Production verification (2026-11-05, details in `docs/VERIFICATION.md`):
+- `scripts/verify_deployment.py --live`: 12 of 12 checks passed, including one live analysis
+  (three routes of 604.1 / 613.5 / 634.8 miles, a forecast at 79 of 79 checkpoints).
+- Browser checks on the deployed app at 1440 x 900 and 375 x 812: 17 of 17 passed (demo labeled
+  as simulated, load rule changes the result, slider with 0 requests, no console errors, no
+  horizontal overflow).
+- Backend runtime logs: no error lines.
+
+Codex review: the bot reviewed `d941054` with no findings. The commits after it (README wording,
+notice text, deployment records) have not been reviewed yet.
+
+Done in this PR:
+- Valhalla etiquette: every routing request carries an `X-Client-Id` header
+  (`VALHALLA_CLIENT_ID`), as the Valhalla documentation asks of apps published to end users.
+- Frontend hosting config: `frontend/vercel.json` (build, output directory, security headers,
+  long-lived caching for hashed assets).
+- `scripts/verify_deployment.py`: checks a deployed backend and frontend end to end (health, HTTPS
+  redirect, JSON 404, debug off, CORS for the frontend and against another origin, validation
+  envelope, place search, demo analysis, one optional live analysis, and that the frontend bundle
+  points at the API and holds no secret) and prints the table for `docs/VERIFICATION.md`.
+- Dress rehearsal on a local machine with the production settings module and a production build
+  of the frontend: every check passed, including one live analysis (three routes, 79 of 79
+  checkpoints with a forecast).
+- Documents: complete `README.md` (what it does, risk rules, recommendation, architecture,
+  providers, running, API, tests, deployment, limitations, AI assistance, attribution),
+  `docs/DEPLOYMENT.md` (runbook, environment variables, a draft of the Valhalla notification),
+  `docs/VERIFICATION.md`, `docs/LOOM_SCRIPT.md`, and a ready GitHub Actions workflow in
+  `docs/ci/github-actions-ci.yml` (not active: the token cannot push workflow files).
+- Housekeeping: unused Vite template assets removed.
+
+Test results (2026-11-05): backend `pytest` 384 passed, 1 deselected; `ruff` clean. Frontend
+`vitest` 136 passed; Playwright 22 passed; `tsc -b`, `oxlint`, `prettier --check`, `vite build`
+clean.
+
+Still to do:
+1. Codex review of the final PR head, then Oliver's decision on merging PR #5.
+2. Oliver records the Loom walkthrough (`docs/LOOM_SCRIPT.md`) and adds the link to the README.
+3. Oliver confirms when Spotter's four-day window began (D1), before submitting.
+4. Watch the usage notice for a reply. If the maintainers object, switch live routing off.
+
 Optional (only if time remains after PR #5 acceptance): Mapbox adapter, truck-position marker
 animation, CSV export of checkpoints.
 
@@ -966,11 +1022,11 @@ No credentials are required for the default plan.
 - [x] Application is responsive (PR #3: verified at 375 px and 1440 px)
 - [x] Automated tests pass (backend 382, frontend 126, Playwright 22 at two widths)
 - [x] Live provider integration verified (PR #2 live smoke test, 2026-11-05)
-- [ ] Production frontend verified
-- [ ] Production backend verified
-- [ ] GitHub repository pushed under Oliver-Leonor
-- [ ] README completed
-- [ ] Loom recording script prepared
+- [x] Production frontend verified (PR #5, 2026-11-05)
+- [x] Production backend verified (PR #5, 2026-11-05)
+- [x] GitHub repository pushed under Oliver-Leonor
+- [x] README completed (PR #5; the hosted URL and video link are added after deployment)
+- [x] Loom recording script prepared (PR #5, `docs/LOOM_SCRIPT.md`)
 - [ ] Final Loom video recorded and linked by Oliver
 - [ ] Total working time within 16 hours
 
@@ -1008,6 +1064,11 @@ No credentials are required for the default plan.
 | 2026-11-05 | The risk ribbon is one tab stop with arrow-key movement (roving focus) | PR #3 review: checkpoints must be reachable without a pointer; a route can have 60 checkpoints, so one tab stop per route keeps the page navigable. |
 | 2026-11-05 | Results are cleared when a new comparison starts, and each result states its trip | PR #3 review: a recommendation must never be shown beside a form or a failed request that describes a different trip. |
 | 2026-11-05 | The slider's hour lives in a small store outside React; the map subscribes to it | A slider move swaps paint expressions only: no React render of the page, no source rebuild, no request. |
+| 2026-11-05 | `X-Client-Id` header on Valhalla requests; a notification draft is ready; no public deployment before Oliver decides D3 | The Valhalla documentation asks end-user apps on the FOSSGIS server to identify themselves and to tell the maintainers. |
+| 2026-11-05 | Oliver approved the production deployment on his personal Vercel Hobby account, on condition that the Valhalla usage notice is posted first (edited: non-commercial assessment and portfolio demo, limits are per server instance, requests are user-initiated with no background polling) and that the README's AI disclosure is made precise | PR #5 review. If the maintainers object, live routing is switched off until another source is configured. StormRoute stays a low-traffic personal demo with no advertising, subscriptions or production trucking use, in line with Open-Meteo's non-commercial terms. |
+| 2026-11-05 | Production deployed after the usage notice was posted (https://github.com/valhalla/valhalla/discussions/6465); frontend first to learn its domain, then the backend with that origin in CORS and in `X-Client-Id` | The approved order. The frontend alone sends no routing request, so nothing reached Valhalla before the notice. |
+| 2026-11-05 | A deployment verification script instead of manual curl checks | The same checks can be rerun after every deployment and pasted into the verification record. |
+| 2026-11-05 | The CI workflow is kept in `docs/ci/` rather than `.github/workflows/` | The project's access token has no `workflow` scope, so a push containing a workflow file would be rejected. |
 | 2026-11-05 | Slider offsets are measured from the real departure time, and the ticks are clock times | PR #4 review: the forecast hours start at the top of the departure hour, so "At departure" was wrong for any departure with minutes. |
 | 2026-11-05 | Calm heatmap cells are drawn faint (opacity 0.14 against 0.5) | A corridor of solid green hid the map and the routes; the weather that matters now stands out. |
 | 2026-11-05 | Truck position marker included | It ties the corridor forecast at the chosen hour to where the truck would be at that hour. |
@@ -1032,5 +1093,8 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #3 Codex round 2 fix | 11:43 | 11:46 | 0.1 h | validation messages without a form field shown in the alert, 3 tests, browser check with demo mode disabled |
 | 2026-11-05 | PR #3 merge + PR #4 heatmap and slider | 11:49 | 11:59 | 0.2 h | squash merge, corridor heatmap layer, forecast slider with external store, truck marker, layer switches, Playwright suite (22 runs), browser checks, docs, PR |
 | 2026-11-05 | PR #4 Codex round 1 fix | 12:13 | 12:14 | 0.1 h | slider offsets measured from the real departure, clock-time ticks, 10 tests, browser check at 8:45 AM |
+| 2026-11-05 | PR #4 merge + PR #5 preparation | 12:25 | 12:30 | 0.2 h | squash merge, X-Client-Id, Vercel config, verification script and local dress rehearsal, README, deployment runbook, verification record, Loom script, CI workflow file |
+| 2026-11-05 | PR #5 approved changes | 12:42 | 12:43 | 0.1 h | README AI disclosure, edited Valhalla notice, Vercel account and plan checks; the notice could not be posted from the session, so the deployment is on hold |
+| 2026-11-05 | PR #5 production deployment and verification | 13:28 | 13:34 | 0.3 h | notice verified, frontend and backend deployed on the personal Hobby account, verification script (12 checks), browser checks (17), runtime logs, documents |
 
-Cumulative active time: 2.7 h of 16.0 h (13.3 h remain; PR #5 budget unchanged).
+Cumulative active time: 3.3 h of 16.0 h (12.7 h remain).
