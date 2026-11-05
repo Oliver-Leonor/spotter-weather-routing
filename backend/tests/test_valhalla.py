@@ -235,3 +235,21 @@ def test_recorded_provider_describes_its_trip():
     assert provider.origin_label == "Denver, Colorado, US"
     assert provider.destination_label == "Kansas City, Missouri, US"
     assert provider.recorded_at.isoformat() == "2026-11-05T02:10:00+00:00"
+
+
+# ------------------------------------------------- public server etiquette ------
+# The Valhalla docs ask apps published to end users to identify themselves on the public FOSSGIS
+# server with an X-Client-Id header (for example `X-Client-Id: newroutingapp.io`).
+def test_requests_identify_the_app_with_an_x_client_id_header(respx_mock, settings):
+    settings.VALHALLA_CLIENT_ID = "stormroute.example.app"
+    route = respx_mock.post(ROUTE_URL).respond(json=three_route_payload())
+
+    ValhallaProvider().get_routes(ORIGIN, DESTINATION)
+
+    assert route.calls.last.request.headers["x-client-id"] == "stormroute.example.app"
+
+
+def test_x_client_id_has_a_default_so_it_is_never_missing(respx_mock):
+    route = respx_mock.post(ROUTE_URL).respond(json=three_route_payload())
+    ValhallaProvider().get_routes(ORIGIN, DESTINATION)
+    assert route.calls.last.request.headers["x-client-id"] == "stormroute"
