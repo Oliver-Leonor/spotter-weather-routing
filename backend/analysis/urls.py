@@ -4,4 +4,6 @@ from . import views
 
 urlpatterns = [
     path("health/", views.health, name="health"),
+    path("geocode/", views.geocode, name="geocode"),
+    path("routes/analyze/", views.analyze_routes, name="analyze-routes"),
 ]

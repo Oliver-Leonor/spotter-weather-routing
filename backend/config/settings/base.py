@@ -75,7 +75,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"anon": os.environ.get("API_THROTTLE_RATE", "60/min")},
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.environ.get("API_THROTTLE_RATE", "60/min"),
+        # One analysis fans out to the public routing and weather services.
+        "analyze": os.environ.get("ANALYZE_THROTTLE_RATE", "20/min"),
+        "geocode": os.environ.get("GEOCODE_THROTTLE_RATE", "120/min"),
+    },
     "EXCEPTION_HANDLER": "analysis.exceptions.exception_handler",
 }
 

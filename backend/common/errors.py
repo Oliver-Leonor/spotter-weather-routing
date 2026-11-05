@@ -50,3 +50,10 @@ class NoRouteError(AppError):
 
     status_code = 422
     code = "NO_ROUTE"
+
+
+class TripTooLargeError(AppError):
+    """The trip needs more forecast points than one analysis may request from the weather API."""
+
+    status_code = 422
+    code = "TRIP_TOO_LARGE"
