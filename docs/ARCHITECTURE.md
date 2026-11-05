@@ -22,7 +22,9 @@ Django 6 + DRF (backend/)
 
 - `config/settings/{base,dev,test,prod}.py`: environment-driven settings. No database, no auth,
   no sessions. DRF renders JSON only; a uniform error envelope
-  `{"error": {"code", "message", ...}}` is produced by `analysis/exceptions.py`.
+  `{"error": {"code", "message", ...}}` is produced by `analysis/exceptions.py` for DRF
+  exceptions and by `analysis/errors.py` (`handler404`/`handler500` in `config/urls.py`) for
+  unresolved paths and unhandled exceptions, which never reach DRF.
 - `risk/levels.py`: `RiskLevel` IntEnum in Spotter's severity order (Low 0 to No Travel 4).
 - `risk/classification.py`: pure functions `classify_wind`, `classify_rain`, `classify_snow`,
   `apply_load_rules` and `classify_checkpoint`. Missing values yield `unknown`, never Low.

@@ -587,7 +587,7 @@ Risks and mitigations:
 | PR | Title | Status | Budget | Actual |
 |---|---|---|---:|---:|
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
-| 1 | Project foundation and risk engine | Ready for Codex Review | 2.0 h | 0.3 h |
+| 1 | Project foundation and risk engine | Ready for Codex Review (round 2) | 2.0 h | 0.4 h |
 | 2 | Routing, weather, recommendation backend | Not Started | 4.0 h | |
 | 3 | React dashboard and interactive map | Not Started | 3.5 h | |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
@@ -629,9 +629,15 @@ Implementation summary:
   verified live with production settings (`DEBUG=False`, HTTPS redirect 308, HSTS, CORS limited to
   the configured origin, custom 405/404 envelopes). Findings recorded in the decision log.
 
-Test results (2026-11-05): backend `pytest` 60 passed (58 risk-table/boundary/load/missing-data
-cases + 2 health API), `ruff check` and `ruff format --check` clean; frontend `vitest` 3 passed,
+Test results (2026-11-05): backend `pytest` 62 passed (58 risk-table/boundary/load/missing-data
+cases + 4 health/error-envelope API tests), `ruff check` and `ruff format --check` clean; frontend `vitest` 3 passed,
 `tsc -b` clean, `oxlint` clean, `prettier --check` clean, `vite build` OK.
+
+Codex review round 1 (2026-11-05): finding accepted. Unresolved paths were answered by Django's
+HTML 404 (URL resolution fails before any DRF view, so the DRF exception handler never runs).
+Fix: `analysis/errors.py` JSON `handler404`/`handler500` registered in `config/urls.py`;
+`test_unknown_api_route_is_404_json` now asserts content type and body, plus tests for non-API
+paths and the 500 handler. Backend suite: 62 passed. Production backend redeployed and re-verified.
 
 Known issues: none open. Frontend map/heatmap and all provider code are intentionally absent (PR #2
 to #4).
@@ -757,5 +763,6 @@ No credentials are required for the default plan.
 |---|---|---|---|---:|---|
 | 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:17 | 0.5 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md, decisions, bootstrap push |
 | 2026-11-05 | PR #1 foundation + risk engine | 09:17 | 09:35 | 0.3 h | Django/DRF scaffold, TDD risk classifier (60 tests), Vite/React scaffold (3 tests), Vercel smoke deploy + debugging, docs, PR |
+| 2026-11-05 | PR #1 Codex round 1 fix | 09:40 | 09:48 | 0.1 h | JSON handler404/handler500 + tests, redeploy |
 
-Cumulative active time: 0.8 h of 16.0 h (reforecast after PR #1: 15.2 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).
+Cumulative active time: 0.9 h of 16.0 h (reforecast after PR #1 round 1: 15.1 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).
