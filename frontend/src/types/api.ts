@@ -97,8 +97,12 @@ export interface RouteSummary {
 export interface RouteAnalysis {
   id: string
   name: string
+  /** GeoJSON `[lon, lat]` pairs, simplified for display (about 30 m tolerance). */
   geometry: { type: 'LineString'; coordinates: [number, number][] }
+  /** Great-circle length of the full route geometry. Risk mileage adds up to this. */
   distance_miles: number
+  /** The routing provider's own total, reported alongside for comparison. */
+  provider_distance_miles: number
   duration_seconds: number
   departure_time: string
   arrival_time: string
@@ -110,19 +114,23 @@ export interface RouteAnalysis {
 export interface Recommendation {
   route_id: string | null
   explanation: string
+  /** Eligible routes only (status `ok`), best first. */
   ranking: string[]
   blocked_route_ids: string[]
   unverified_route_ids: string[]
 }
 
+/** Codes sent today: FEWER_ROUTES, DUPLICATE_ROUTES_REMOVED, HEATMAP_UNAVAILABLE, DEMO_MODE. */
 export interface Warning {
   code: string
   message: string
 }
 
+/** One corridor grid cell. `lat`/`lon` is the cell centre; arrays have one value per hour. */
 export interface HeatmapCell {
   lat: number
   lon: number
+  /** Risk value 0 to 4 per hour, or null when that hour has no usable forecast. */
   risk: (number | null)[]
   wind: (number | null)[]
   rain: (number | null)[]
@@ -130,9 +138,15 @@ export interface HeatmapCell {
 }
 
 export interface Heatmap {
+  /** Departure time floored to the hour (UTC). `hours[0]` equals `base_time`. */
   base_time: string
+  /** 49 timestamps: forecast offsets 0 to 48 hours. */
   hours: string[]
   cell_size_miles: number
+  /** Cell height and width in degrees: a cell spans centre ± half a step. */
+  lat_step: number
+  lon_step: number
+  /** Empty when the heatmap forecast failed (see the HEATMAP_UNAVAILABLE warning). */
   cells: HeatmapCell[]
 }
 
@@ -157,6 +171,12 @@ export interface AnalyzeResponse {
   heatmap: Heatmap
 }
 
+/**
+ * Error envelope for every non-2xx response. Codes: VALIDATION_ERROR (400, with `details` per
+ * field), NO_ROUTE and TRIP_TOO_LARGE (422), THROTTLED (429), ROUTING_UNAVAILABLE,
+ * WEATHER_UNAVAILABLE and GEOCODING_UNAVAILABLE (502, with `provider`), ROUTING_TIMEOUT,
+ * WEATHER_TIMEOUT and GEOCODING_TIMEOUT (504, with `provider`).
+ */
 export interface ApiError {
   error: { code: string; message: string; provider?: string; details?: unknown }
 }
