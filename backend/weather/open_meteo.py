@@ -34,7 +34,8 @@ MAX_CONCURRENT_REQUESTS = 4
 FORECAST_HORIZON_DAYS = 15  # the API accepts dates up to today (UTC) plus 15 days
 RISK_DECIMALS = 3
 
-FORECAST_CACHE = TTLCache(ttl_seconds=600, max_entries=8192)
+# About four full-size analyses. Each entry is one place's hourly series (tens of kilobytes).
+FORECAST_CACHE = TTLCache(ttl_seconds=600, max_entries=2048)
 
 
 class OpenMeteoProvider:

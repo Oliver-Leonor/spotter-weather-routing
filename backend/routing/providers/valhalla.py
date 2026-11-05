@@ -27,7 +27,8 @@ KM_TO_MILES = 0.621371
 NO_ROUTE_ERROR_CODES = {170, 171, 442}
 DISTANCE_LIMIT_ERROR_CODE = 154
 
-ROUTE_CACHE = TTLCache(ttl_seconds=600, max_entries=256)
+# Each entry holds up to three full route geometries (a few megabytes), so keep it small.
+ROUTE_CACHE = TTLCache(ttl_seconds=600, max_entries=32)
 _request_lock = threading.Lock()
 
 
