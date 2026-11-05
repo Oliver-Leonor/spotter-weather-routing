@@ -920,8 +920,18 @@ Acceptance: hosted app verified end to end against the production backend; all c
 section 16 checked or explicitly reported.
 
 **Status: In Progress** (2026-11-05). Branch `feat/pr5-deploy-docs`. Everything that does not need
-a public deployment is done. **The production deployment has not been made**: it waits for
-Oliver's decision on notifying the Valhalla maintainers (D3).
+a public deployment is done. **The production deployment has not been made.** Oliver approved it
+on 2026-11-05 on two conditions: the Valhalla maintainers are notified first, and the README's AI
+disclosure is made more precise. The README is corrected. The notification has **not** been posted
+yet: the session could not write to GitHub Discussions, so Oliver has to post it (title and text
+in `docs/DEPLOYMENT.md`). The deployment follows as soon as it is posted.
+
+Codex review (2026-11-05): the bot reviewed `d941054` and reported no findings.
+
+Pre-deployment checks done (2026-11-05): the Vercel account is `oliverleonor90`, the active scope
+is the personal one (`oliverleonor90s-projects`), its plan is Hobby, and the `stormroute-api`
+project's production environment already has the settings module, secret key, allowed hosts, CORS
+origin and contact email variables.
 
 Done in this PR:
 - Valhalla etiquette: every routing request carries an `X-Client-Id` header
@@ -947,8 +957,8 @@ Test results (2026-11-05): backend `pytest` 384 passed, 1 deselected; `ruff` cle
 clean.
 
 Still to do, in order:
-1. Oliver decides on the Valhalla notification (draft in `docs/DEPLOYMENT.md`) and approves the
-   production deployment.
+1. Oliver posts the Valhalla usage notice (General category of the Valhalla GitHub Discussions,
+   text in `docs/DEPLOYMENT.md`).
 2. Deploy the frontend, set the backend's `CORS_ALLOWED_ORIGINS` and `VALHALLA_CLIENT_ID`, deploy
    the backend.
 3. Run `scripts/verify_deployment.py --live` against production and the browser checks, record
@@ -1047,6 +1057,7 @@ No credentials are required for the default plan.
 | 2026-11-05 | Results are cleared when a new comparison starts, and each result states its trip | PR #3 review: a recommendation must never be shown beside a form or a failed request that describes a different trip. |
 | 2026-11-05 | The slider's hour lives in a small store outside React; the map subscribes to it | A slider move swaps paint expressions only: no React render of the page, no source rebuild, no request. |
 | 2026-11-05 | `X-Client-Id` header on Valhalla requests; a notification draft is ready; no public deployment before Oliver decides D3 | The Valhalla documentation asks end-user apps on the FOSSGIS server to identify themselves and to tell the maintainers. |
+| 2026-11-05 | Oliver approved the production deployment on his personal Vercel Hobby account, on condition that the Valhalla usage notice is posted first (edited: non-commercial assessment and portfolio demo, limits are per server instance, requests are user-initiated with no background polling) and that the README's AI disclosure is made precise | PR #5 review. If the maintainers object, live routing is switched off until another source is configured. StormRoute stays a low-traffic personal demo with no advertising, subscriptions or production trucking use, in line with Open-Meteo's non-commercial terms. |
 | 2026-11-05 | A deployment verification script instead of manual curl checks | The same checks can be rerun after every deployment and pasted into the verification record. |
 | 2026-11-05 | The CI workflow is kept in `docs/ci/` rather than `.github/workflows/` | The project's access token has no `workflow` scope, so a push containing a workflow file would be rejected. |
 | 2026-11-05 | Slider offsets are measured from the real departure time, and the ticks are clock times | PR #4 review: the forecast hours start at the top of the departure hour, so "At departure" was wrong for any departure with minutes. |
@@ -1074,5 +1085,6 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #3 merge + PR #4 heatmap and slider | 11:49 | 11:59 | 0.2 h | squash merge, corridor heatmap layer, forecast slider with external store, truck marker, layer switches, Playwright suite (22 runs), browser checks, docs, PR |
 | 2026-11-05 | PR #4 Codex round 1 fix | 12:13 | 12:14 | 0.1 h | slider offsets measured from the real departure, clock-time ticks, 10 tests, browser check at 8:45 AM |
 | 2026-11-05 | PR #4 merge + PR #5 preparation | 12:25 | 12:30 | 0.2 h | squash merge, X-Client-Id, Vercel config, verification script and local dress rehearsal, README, deployment runbook, verification record, Loom script, CI workflow file |
+| 2026-11-05 | PR #5 approved changes | 12:42 | 12:43 | 0.1 h | README AI disclosure, edited Valhalla notice, Vercel account and plan checks; the notice could not be posted from the session, so the deployment is on hold |
 
-Cumulative active time: 2.9 h of 16.0 h (13.1 h remain).
+Cumulative active time: 3.0 h of 16.0 h (13.0 h remain).

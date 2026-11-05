@@ -195,10 +195,14 @@ The full list is in [`docs/ASSUMPTIONS.md`](./docs/ASSUMPTIONS.md).
 
 ## AI assistance
 
-This project was built with AI assistance. Claude Code wrote the code, tests and documentation
-under my direction, one pull request at a time against `spec.md`. Each pull request was reviewed
-with OpenAI Codex and by me before I merged it, and the findings and fixes are recorded in
-`spec.md` section 14. Scope, provider choices and acceptance decisions were mine.
+I used Claude Code to implement the application, tests, and documentation through small,
+specification-driven pull requests. I defined the requirements, evaluated architecture and provider
+decisions, assessed review findings, and manually controlled every squash merge.
+
+OpenAI Codex provided independent code reviews and identified issues involving risk
+classification, measurement precision, keyboard accessibility, and forecast timing. These findings
+were investigated and corrected. Some final correction commits were merged without an additional
+automated review, as documented in `spec.md`.
 
 ## Time
 

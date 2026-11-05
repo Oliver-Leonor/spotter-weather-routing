@@ -21,24 +21,34 @@ do two things:
    the frontend's domain.
 2. Let the maintainers know through GitHub Discussions.
 
-A notification that can be posted at https://github.com/valhalla/valhalla/discussions:
+Other apps announce themselves in the **General** category of
+https://github.com/valhalla/valhalla/discussions with a title of the form "Public demo server
+usage notice: <app>". The notice for StormRoute, with the title
+"Public demo server usage notice: StormRoute (non-commercial portfolio demo)":
 
-> **StormRoute: small portfolio app using the FOSSGIS demo server**
+> **StormRoute: non-commercial portfolio demo using the FOSSGIS demo server**
 >
-> Hello, I am publishing a small portfolio project that sends routing requests to
-> valhalla1.openstreetmap.de. It is a take-home assessment, not a commercial product, and I expect
-> very low traffic.
+> Hello, I am publishing a small web app that sends routing requests to
+> valhalla1.openstreetmap.de, and I would like to let you know as the documentation asks.
+>
+> StormRoute is a non-commercial take-home assessment and portfolio demonstration, not a product.
+> It has no advertising, no subscriptions and no production trucking use, and I expect very low
+> traffic.
 >
 > - App: StormRoute, weather-aware trip planning (https://github.com/Oliver-Leonor/spotter-weather-routing)
-> - Requests: `/route` with `auto` costing and two alternates, one request per trip comparison
-> - Etiquette: `X-Client-Id` and an identifying `User-Agent` on every request, one request in
->   flight at a time, identical trips cached for 10 minutes, and a per-client rate limit in front
->   of it
+> - Requests: `/route` with `auto` costing and two alternates. Every request is started by a
+>   person pressing a button to compare routes for one trip. There is no background polling and
+>   no batch use.
+> - Identification: an `X-Client-Id` header and an identifying `User-Agent` on every request.
+> - Load limiting: one request in flight at a time, identical trips cached for 10 minutes, and a
+>   per-client rate limit in front of the routing call. These work per server instance. The app
+>   runs on serverless hosting, so they are not global across instances.
 >
-> Please tell me if this use is not welcome and I will switch to another routing source. Thank you
-> for running the service.
+> If this use is not welcome, please tell me and I will disable live routing until I have
+> configured another routing source. Thank you for running the service.
 
-This step needs Oliver's decision. It is recorded as D3 in `spec.md`.
+Oliver approved posting this on 2026-11-05 (D3 in `spec.md`). If the maintainers object, live
+routing is switched off until another routing source is configured.
 
 ## Backend
 
