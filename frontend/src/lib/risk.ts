@@ -48,3 +48,8 @@ export function riskColor(level: RiskLevelOrUnknown): string {
 export function riskValue(level: RiskLevelOrUnknown): number | null {
   return VALUES[level]
 }
+
+/** Band boundaries of the risk rules, used to format measurements without crossing a band. */
+export const WIND_THRESHOLDS = [25, 35, 45, 55]
+export const RAIN_THRESHOLDS = [0.1, 0.25, 0.5, 1]
+export const SNOW_THRESHOLDS = [0.5, 1, 2, 3]

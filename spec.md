@@ -524,8 +524,9 @@ If there is no candidate: `route_id = null` and the explanation is
 - Layers: unselected routes (slate, 4 px, 0.6 opacity), selected route (teal, 6 px, with a darker
   casing), checkpoint circles colored by risk (gray for unknown, hatched/outlined for blocked),
   heatmap fill, labels for origin/destination.
-- Interactions: card click → `selected` property updated via `setFeatureState`; checkpoint click →
-  popup/side detail with measurements, forecast time and ETA; `fitBounds` on new results only.
+- Interactions: card click → `selected` property updated with `source.setData()` (three small
+  features); checkpoint click → detail panel with measurements, forecast time and ETA; `fitBounds`
+  on new results only.
 - Risk colors (consistent across map, cards and legend): Low `#22c55e`, Moderate `#eab308`,
   High `#f97316`, Severe `#dc2626`, No Travel `#7f1d1d` with hatch, Unknown `#94a3b8`.
 
@@ -642,8 +643,8 @@ Risks and mitigations:
 |---|---|---|---:|---:|
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
 | 1 | Project foundation and risk engine | Merged (squash, `5265147`) | 2.0 h | 0.5 h |
-| 2 | Routing, weather, recommendation backend | Ready for Codex Review (round 2) | 4.0 h | 0.7 h |
-| 3 | React dashboard and interactive map | Not Started | 3.5 h | |
+| 2 | Routing, weather, recommendation backend | Merged (squash, `14b4a05`) | 4.0 h | 0.7 h |
+| 3 | React dashboard and interactive map | Ready for Codex Review (round 3) | 3.5 h | 0.6 h |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
 | | Reserve for review fixes and verification | | 1.0 h | |
@@ -719,7 +720,8 @@ Acceptance: valid analysis for Denver to Kansas City with three routes; ETAs shi
 time and change the selected forecast hour; recommendation order verified by tests; blocked and
 unverified routes handled; `docs/ASSUMPTIONS.md` written.
 
-**Status: Ready for Codex Review** (2026-11-05). Branch `feat/pr2-analysis-backend`.
+**Status: Merged** (2026-11-05, squash commit `14b4a05`, after the review round 1 fix). PR:
+https://github.com/Oliver-Leonor/spotter-weather-routing/pull/2 (branch `feat/pr2-analysis-backend`).
 
 Implementation summary:
 - Routing: `routing/geometry.py` (polyline6 decoding, haversine distances, interpolation, display
@@ -774,6 +776,73 @@ demo mode is shown. Vitest component tests.
 Acceptance: full analysis through the UI against the local backend; route selection and checkpoint
 detail work; mobile layout verified with screenshots.
 
+**Status: Ready for Codex Review** (2026-11-05). Branch `feat/pr3-dashboard-map`.
+
+Implementation summary:
+- Trip form (`features/trip-planner`): city and town search as an accessible combobox (debounced,
+  keyboard and pointer), departure in the browser's time zone sent as UTC, load weight, 10/25/50
+  mile interval, client-side validation that mirrors the API, server field errors shown on the
+  field. "Run the demo trip" loads the recorded trip with simulated weather.
+- Route comparison (`features/route-comparison`): recommendation banner with the backend's
+  explanation (or "No safe route is currently recommended"), one card per route with travel time,
+  distance, arrival in the destination's time zone, Blocked / Unverified / Recommended status and
+  a **risk ribbon**: the route drawn as a strip, each stretch as wide as the miles its checkpoint
+  owns and colored by the risk at arrival. Checkpoint detail panel with measurements, per-condition
+  levels, the load rule that applied, the forecast hour used and previous/next stepping.
+- Map (`features/route-map`): MapLibre GL with OpenFreeMap tiles, created once and updated with
+  `setData`. All routes, the selected one highlighted, checkpoints colored by risk, start and end
+  markers, fit to bounds once per analysis, click a route or a checkpoint to select it. Loaded
+  lazily in its own chunk.
+- States: loading, empty, provider failure with "Try again", validation failure. Results are
+  removed as soon as a new comparison starts, and every result names the trip it was computed for.
+  Warnings from the API are shown.
+- Demo mode: a sticky hazard-striped "Simulated weather" band stays on screen for as long as demo
+  results are shown, with a second label on the map.
+- Responsive: one column on small screens (form, recommendation, map, cards) with the result and
+  checkpoint details scrolled into view; a scrolling rail beside a full-height map on large ones.
+- Attribution footer (OpenStreetMap with the fixthemap link, FOSSGIS, Open-Meteo CC BY 4.0,
+  OpenFreeMap) and the routing limitation notes from the API.
+
+Test results (2026-11-05): frontend `vitest` 87 passed (API client, formatting, map data, ribbon,
+place search, trip form, route card, recommendation, checkpoint detail, full App flows); `tsc -b`,
+`oxlint` and `prettier --check` clean; `vite build` OK (app 289 kB / 91 kB gzip, map chunk
+1,081 kB / 294 kB gzip, loaded lazily). Backend unchanged: `pytest` 382 passed.
+
+Browser verification (2026-11-05, Chromium via Playwright against the local backend, no console
+errors): demo trip at 1440 x 900 and 375 x 812; a live Denver to Kansas City trip typed through the
+form (place search, real Valhalla and Open-Meteo, three route cards, 8.0 s including typing);
+clicking a checkpoint and a route line on the map; changing the load to 28,000 lb and comparing
+again; no horizontal overflow at 375 px. Screenshots: `docs/screenshots/pr3-*.png`.
+
+Codex review round 1 (2026-11-05, at `926b16c`): two P2 findings, both accepted.
+
+1. Keyboard users could not open checkpoint details: the ribbon segments were pointer-only and the
+   Previous/Next buttons only exist once a checkpoint is open. Fix: the ribbon is now a single tab
+   stop with a roving focus. Arrow, Home and End keys move between checkpoints, Enter or Space
+   opens the focused one, the tab stop returns to the selected checkpoint, the focus ring is
+   visible and each segment has a label and a pressed state. Nothing requires the map.
+2. A failed comparison left the earlier routes and recommendation on screen while the form could
+   describe a different trip. Fix: results are removed as soon as a new comparison starts, so they
+   never sit beside a pending or failed request, and every result now carries an "Analyzed trip"
+   line (origin, destination, departure, load, interval).
+
+Frontend suite after the fixes: 95 passed (8 new tests, including a keyboard-only flow through the
+whole App and a failed request after a successful one); `tsc -b`, `oxlint`, `prettier --check`
+clean. Rechecked in Chromium with the keyboard only and with the backend stopped mid-session.
+
+Codex review round 2 (2026-11-05, at `0d84a64`): both round 1 fixes verified; one new P2 finding,
+accepted. A validation error for a request field that has no input in the form was invisible: with
+`ALLOW_FIXTURE_MODE=false` the 400 carries `details.mode`, and the alert only said "Check the
+highlighted fields" with nothing highlighted. Fix: the alert now lists every validation message
+whose field has no input in the form (`mode`, `checkpoint_interval_miles`, non-field errors), says
+"Check the highlighted fields" only when a form field really is highlighted, and falls back to the
+server message when there are no details. Frontend suite: 98 passed (3 new tests). Rechecked in
+Chromium against a backend started with demo mode disabled: the alert reads "Demo mode is not
+enabled on this server."
+
+Known issues: none open. The heatmap layer and forecast slider are PR #4; the Playwright e2e suite
+is PR #4.
+
 ### PR #4: Weather heatmap and forecast slider
 
 Branch `feat/pr4-heatmap-slider`.
@@ -822,9 +891,9 @@ No credentials are required for the default plan.
 - [ ] React frontend implemented
 - [x] Django backend implemented (PR #1 scaffold and risk engine; PR #2 routing, weather,
       recommendation and API)
-- [ ] Origin and destination work
-- [ ] Departure date and time work
-- [ ] Load weight works
+- [x] Origin and destination work (PR #3)
+- [x] Departure date and time work (PR #3)
+- [x] Load weight works (PR #3)
 - [x] Three distinct routing API routes verified for a demonstration trip (PR #2 live smoke test
       through the API: Denver to Kansas City, 604.1 / 613.5 / 634.8 miles; UI in PR #3)
 - [x] 10/25/50-mile checkpoint sampling works (API, PR #2; UI control in PR #3)
@@ -834,11 +903,11 @@ No credentials are required for the default plan.
 - [x] Load-dependent rules work (PR #1 classifier; end-to-end in PR #2)
 - [x] No Travel rules work (PR #2: a blocked route is never recommended)
 - [x] Route recommendations follow the required priority order (PR #2)
-- [ ] All routes are displayed on the map
-- [ ] Checkpoint details work
+- [x] All routes are displayed on the map (PR #3)
+- [x] Checkpoint details work (PR #3)
 - [ ] Weather heatmap works
 - [ ] 0 to 48 hour forecast slider works
-- [ ] Application is responsive
+- [x] Application is responsive (PR #3: verified at 375 px and 1440 px)
 - [ ] Automated tests pass
 - [x] Live provider integration verified (PR #2 live smoke test, 2026-11-05)
 - [ ] Production frontend verified
@@ -876,6 +945,13 @@ No credentials are required for the default plan.
 | 2026-11-05 | `tzdata` added as a dependency | DST-correct local UTC offsets at each ETA whatever zone database the host has. |
 | 2026-11-05 | Measurements are classified at provider precision (normalized to 6 decimals), replacing the 3-decimal rounding; display rounding is separate and band-aware | PR #2 review: 3-decimal rounding turned 1.000394 in/h (25.41 mm) into 1.000 and Severe instead of No Travel, and could round 54.99997 mph up to 55. |
 | 2026-11-05 | Oliver approved the scripted demo weather, the 450-forecast guard and the contract additions | PR #2 review. Follow-ups: PR #3 must show a prominent, persistent "simulated weather" label in demo mode; before production (PR #5) add Valhalla's identifying `X-Client-Id` header and arrange the provider notification with Oliver's approval. |
+| 2026-11-05 | Typeface: Barlow with Barlow Condensed for names and numbers, loaded from Google Fonts | Barlow descends from highway signage lettering, which suits a driver's tool; system fonts are the fallback. |
+| 2026-11-05 | Risk ribbon on each route card | Shows where along the route the risk is, in proportion to the attributed miles, and makes three routes comparable at a glance without the map. |
+| 2026-11-05 | Checkpoint details in a panel, not a map popup; selection pushed to the map with `setData` | One place for details on every screen size and for keyboard users; three small features make `setData` as cheap as feature state. |
+| 2026-11-05 | The analysis runs on "Compare routes", not on every field change | Each analysis calls the public routing and weather services, so runs are explicit. |
+| 2026-11-05 | The risk ribbon is one tab stop with arrow-key movement (roving focus) | PR #3 review: checkpoints must be reachable without a pointer; a route can have 60 checkpoints, so one tab stop per route keeps the page navigable. |
+| 2026-11-05 | Results are cleared when a new comparison starts, and each result states its trip | PR #3 review: a recommendation must never be shown beside a form or a failed request that describes a different trip. |
+| 2026-11-05 | MapLibre is loaded lazily and its worker URL is set explicitly | Keeps the form usable before 1 MB of map code arrives; MapLibre 6 ships its worker as a separate module that the bundler must emit. |
 
 ---
 
@@ -890,5 +966,8 @@ No credentials are required for the default plan.
 | 2026-11-05 | Session handoff onboarding | 09:56 | 10:01 | 0.1 h | new session: repo, PR and identity checks, full test rerun, deployed health recheck |
 | 2026-11-05 | PR #1 merge + PR #2 analysis backend | 10:05 | 10:41 | 0.6 h | squash merge, provider probes, TDD routing/weather/risk/heatmap/API (291 new tests), live smoke test, docs, PR |
 | 2026-11-05 | PR #2 review round 1 fix | 10:50 | 10:52 | 0.1 h | threshold precision: provider-precision classification, band-aware display, 22 tests, spec section 7 |
+| 2026-11-05 | PR #2 merge + PR #3 dashboard and map | 10:52 | 11:12 | 0.4 h | squash merge, TDD frontend (84 new tests), MapLibre map, browser verification at desktop and 375 px, docs, PR |
+| 2026-11-05 | PR #3 Codex round 1 fixes | 11:24 | 11:26 | 0.1 h | keyboard access to checkpoints (roving focus), stale results cleared, trip summary, 8 tests |
+| 2026-11-05 | PR #3 Codex round 2 fix | 11:43 | 11:46 | 0.1 h | validation messages without a form field shown in the alert, 3 tests, browser check with demo mode disabled |
 
-Cumulative active time: 1.8 h of 16.0 h (14.2 h remain; PR #3 to #5 budgets unchanged).
+Cumulative active time: 2.4 h of 16.0 h (13.6 h remain; PR #4 and #5 budgets unchanged).

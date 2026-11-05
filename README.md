@@ -4,10 +4,13 @@ Spotter full-stack take-home: a React + Django application that compares real ro
 hourly weather forecasts at each checkpoint's estimated arrival time, applies Spotter's risk rules
 and load-dependent adjustments, and recommends the safer route.
 
-Work in progress. The backend analysis API is complete; the dashboard and map are next. The project
+Work in progress. The backend analysis API, the trip form, the route comparison and the interactive
+map are complete; the weather heatmap and forecast slider are next. The project
 specification, decisions and progress live in [`spec.md`](./spec.md), the architecture overview is
 in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), and every modelling assumption is listed in
 [`docs/ASSUMPTIONS.md`](./docs/ASSUMPTIONS.md).
+
+![StormRoute comparing three Denver to Kansas City routes in demo mode](./docs/screenshots/pr3-desktop-demo.png)
 
 ## Quick start
 
