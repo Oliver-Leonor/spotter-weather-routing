@@ -74,9 +74,20 @@ Steps 4, 5, 7, 8 and 9 are pure functions and are tested without any network.
 ## Frontend
 
 - `src/types/api.ts` mirrors the backend contract (spec section 6).
-- `src/lib/risk.ts` holds the shared risk colors, labels and numeric values.
-- Feature folders (`features/trip-planner`, `route-map`, `route-comparison`, `heatmap`) arrive in
-  PR #3 and PR #4.
+- `src/lib/api.ts` is the only place that calls the backend; failures become an
+  `ApiRequestError` carrying the error envelope. `src/lib/format.ts` formats distances, durations,
+  local times and measurements (a measurement keeps enough decimals to agree with its risk band).
+  `src/lib/risk.ts` holds the shared risk colors, labels and thresholds.
+- `features/trip-planner`: the trip form and the place search combobox.
+- `features/route-comparison`: recommendation banner, route cards with the risk ribbon, and the
+  checkpoint detail panel.
+- `features/route-map`: `mapData.ts` builds the GeoJSON (pure, tested); `RouteMap.tsx` owns the
+  MapLibre instance, which is created once and updated with `setData` and `fitBounds`. It is
+  loaded lazily so the form is usable before the map code arrives.
+- `App.tsx` holds the three pieces of state that everything else derives from: the last analysis,
+  the selected route and the selected checkpoint. The analysis request is a TanStack Query
+  mutation; place search is a debounced query.
+- `features/heatmap` (corridor layer and forecast slider) arrives in PR #4.
 
 ## Hosting (verified in PR #1)
 
