@@ -7,6 +7,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5173 },
+  // MapLibre is about 1 MB minified. It is loaded lazily in its own chunk (see App.tsx).
+  build: { chunkSizeWarningLimit: 1200 },
   test: {
     environment: 'jsdom',
     globals: true,
