@@ -167,11 +167,60 @@ def test_missing_measurement_yields_unknown_not_low(wind, rain, snow):
     assert result.drivers == []
 
 
-def test_known_no_travel_wind_is_reported_even_if_rain_is_missing():
-    # The checkpoint is still 'unknown' overall (incomplete), but the known wind level is exposed
-    result = classify_checkpoint(wind_mph=60.0, rain_in_per_hr=None, snow_in_per_hr=0.0, load_lb=0)
+# ------------------------------------------ conclusive No Travel with gaps ---
+@pytest.mark.parametrize(
+    "wind, rain, snow, load_lb, drivers, missing",
+    [
+        # Rule 1: wind >= 55 mph is No Travel regardless of load; missing rain cannot soften it
+        (55.0, None, 0.0, 30000, ["wind"], ["rain"]),
+        (60.0, None, None, 0, ["wind"], ["rain", "snow"]),
+        # Rule 2: 45 <= wind < 55 with load > 30,000 lb
+        (50.0, None, 0.0, 30001, ["wind", "load_rule_2"], ["rain"]),
+        # Rain above 1.00 in/h is conclusive even with wind and snow missing
+        (None, 1.01, None, 0, ["rain"], ["wind", "snow"]),
+        # Snow above 3.0 in/h is conclusive even with wind missing
+        (None, 0.0, 3.01, 0, ["snow"], ["wind"]),
+    ],
+)
+def test_conclusive_no_travel_survives_missing_measurements(
+    wind, rain, snow, load_lb, drivers, missing
+):
+    result = classify_checkpoint(
+        wind_mph=wind, rain_in_per_hr=rain, snow_in_per_hr=snow, load_lb=load_lb
+    )
+    assert result.level is NT
+    assert result.is_unknown is False
+    assert result.drivers == drivers
+    assert result.missing == missing
+    assert result.is_complete is False
+
+
+def test_non_conclusive_known_levels_stay_unknown_when_a_measurement_is_missing():
+    # Severe wind is known, but missing rain could still raise the level, so it is not conclusive
+    result = classify_checkpoint(wind_mph=50.0, rain_in_per_hr=None, snow_in_per_hr=0.0, load_lb=0)
     assert result.level is None
-    assert result.wind_level is NT
+    assert result.is_unknown is True
+    assert result.wind_level is SEV
+    assert result.missing == ["rain"]
+
+
+def test_complete_measurements_report_no_missing_fields():
+    result = classify_checkpoint(wind_mph=10.0, rain_in_per_hr=0.0, snow_in_per_hr=0.0, load_lb=0)
+    assert result.missing == []
+    assert result.is_complete is True
+
+
+def test_to_dict_exposes_missing_measurements_and_unknown_level():
+    result = classify_checkpoint(wind_mph=None, rain_in_per_hr=0.0, snow_in_per_hr=0.0, load_lb=0)
+    payload = result.to_dict()
+    assert payload["level"] == "unknown"
+    assert payload["value"] is None
+    assert payload["missing"] == ["wind"]
+    payload = classify_checkpoint(
+        wind_mph=55.0, rain_in_per_hr=None, snow_in_per_hr=0.0, load_lb=0
+    ).to_dict()
+    assert payload["level"] == "no_travel" and payload["value"] == 4
+    assert payload["missing"] == ["rain"]
 
 
 def test_negative_or_nan_values_are_treated_as_missing():

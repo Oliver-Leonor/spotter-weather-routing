@@ -304,7 +304,7 @@ Response `200`:
             "wind_mph": 12.3, "wind_gust_mph": 20.1, "rain_in_per_hr": 0.0, "snow_in_per_hr": 0.0,
             "temperature_f": 41.2, "weather_code": 3
           },
-          "risk": {"level": "low", "value": 0, "drivers": [], "wind_level": "low", "rain_level": "low", "snow_level": "low", "load_rule_applied": null}
+          "risk": {"level": "low", "value": 0, "drivers": [], "wind_level": "low", "rain_level": "low", "snow_level": "low", "load_rule_applied": null, "missing": []}
         }
       ],
       "summary": {
@@ -385,8 +385,20 @@ Final checkpoint level = max severity over (wind level after load rules, rain le
 Severity order: Low < Moderate < High < Severe < No Travel. The response lists the `drivers`
 (for example `["wind", "load_rule_2"]`) that produced the final level.
 
-Missing data: if any of wind, rain or snow is missing for the forecast hour, or the ETA falls outside
-the fetched forecast coverage, the checkpoint risk is `unknown` (`null`). Unknown never becomes Low.
+Missing data precedence (clarified after Codex review of PR #1):
+
+1. If any *available* measurement conclusively establishes No Travel (wind `>= 55`, the 45 to 55 mph
+   rule with load `> 30,000`, rain `> 1.00`, snow `> 3.0`), the checkpoint is **No Travel** and its
+   `drivers` are kept. Missing data cannot make a prohibited condition less dangerous. The gaps are
+   reported separately in `risk.missing` (subset of `wind`, `rain`, `snow`).
+2. Otherwise, if any of wind, rain or snow is missing for the forecast hour, or the ETA falls outside
+   the fetched forecast coverage, the checkpoint risk is `unknown` (`null`). A known Severe (or
+   lower) level is not conclusive because the missing measurement could raise it. Unknown never
+   becomes Low.
+3. Otherwise the level is the maximum of the three conditions.
+
+Route aggregation (PR #2) counts case 1 as No Travel miles (route blocked) and case 2 as unknown
+miles (route unverified).
 
 Floating point: values are compared as Python floats after rounding provider values to 3 decimals;
 tests cover 24.99, 25, 34.99, 35, 44.99, 45, 54.99, 55 mph; 30000 vs 30001 lb; 40000 vs 40001 lb;
@@ -587,7 +599,7 @@ Risks and mitigations:
 | PR | Title | Status | Budget | Actual |
 |---|---|---|---:|---:|
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
-| 1 | Project foundation and risk engine | Ready for Codex Review (round 2) | 2.0 h | 0.4 h |
+| 1 | Project foundation and risk engine | Ready for Codex Review (round 3) | 2.0 h | 0.5 h |
 | 2 | Routing, weather, recommendation backend | Not Started | 4.0 h | |
 | 3 | React dashboard and interactive map | Not Started | 3.5 h | |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
@@ -629,7 +641,7 @@ Implementation summary:
   verified live with production settings (`DEBUG=False`, HTTPS redirect 308, HSTS, CORS limited to
   the configured origin, custom 405/404 envelopes). Findings recorded in the decision log.
 
-Test results (2026-11-05): backend `pytest` 62 passed (58 risk-table/boundary/load/missing-data
+Test results (2026-11-05): backend `pytest` 69 passed (65 risk-table/boundary/load/missing-data
 cases + 4 health/error-envelope API tests), `ruff check` and `ruff format --check` clean; frontend `vitest` 3 passed,
 `tsc -b` clean, `oxlint` clean, `prettier --check` clean, `vite build` OK.
 
@@ -638,6 +650,13 @@ HTML 404 (URL resolution fails before any DRF view, so the DRF exception handler
 Fix: `analysis/errors.py` JSON `handler404`/`handler500` registered in `config/urls.py`;
 `test_unknown_api_route_is_404_json` now asserts content type and body, plus tests for non-API
 paths and the 500 handler. Backend suite: 62 passed. Production backend redeployed and re-verified.
+
+Codex review round 2 (2026-11-05): P2 finding accepted. A conclusive No Travel measurement (wind
+>= 55, load rule 2, rain > 1.00, snow > 3.0) was downgraded to `unknown` when another measurement
+was missing. Fix in `risk/classification.py`: conclusive No Travel takes precedence over gaps; a new
+`missing` list (and `is_complete`) reports the gaps separately; non-conclusive known levels still
+yield `unknown`. Spec section 7 documents the precedence. Backend suite: 69 passed (8 new tests).
+Frontend `CheckpointRisk` type gained `missing`.
 
 Known issues: none open. Frontend map/heatmap and all provider code are intentionally absent (PR #2
 to #4).
@@ -764,5 +783,6 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:17 | 0.5 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md, decisions, bootstrap push |
 | 2026-11-05 | PR #1 foundation + risk engine | 09:17 | 09:35 | 0.3 h | Django/DRF scaffold, TDD risk classifier (60 tests), Vite/React scaffold (3 tests), Vercel smoke deploy + debugging, docs, PR |
 | 2026-11-05 | PR #1 Codex round 1 fix | 09:40 | 09:48 | 0.1 h | JSON handler404/handler500 + tests, redeploy |
+| 2026-11-05 | PR #1 Codex round 2 fix | 09:52 | 10:00 | 0.1 h | conclusive No Travel precedence over missing data, `missing` field, 8 tests, spec section 7 |
 
-Cumulative active time: 0.9 h of 16.0 h (reforecast after PR #1 round 1: 15.1 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).
+Cumulative active time: 1.0 h of 16.0 h (reforecast after PR #1 round 2: 15.0 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).

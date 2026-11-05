@@ -7,8 +7,14 @@ Boundary convention: every "X to below Y" band is the half-open interval [X, Y).
 shared boundary belongs to the more severe band. "Above N" thresholds are strict (> N). Load rule
 comparisons are strict (> 30,000 lb, > 40,000 lb).
 
-Missing or invalid measurements (None, NaN, negative) never classify as Low: the checkpoint level is
-None ("unknown") and `is_unknown` is True.
+Missing or invalid measurements (None, NaN, negative) never classify as Low. Precedence:
+
+1. If any *available* measurement conclusively establishes No Travel (wind >= 55 mph, the
+   45 to 55 mph load rule, rain > 1.00 in/h, snow > 3.0 in/h), the checkpoint is No Travel. Missing
+   data cannot make a prohibited condition less dangerous. The gaps are still reported in `missing`.
+2. Otherwise, if any measurement is missing, the level is None ("unknown"): a known Severe wind with
+   missing rain is not conclusive because the rain could raise the level. `is_unknown` is True.
+3. Otherwise the level is the highest severity among wind (after load rules), rain and snow.
 """
 
 from __future__ import annotations
@@ -84,10 +90,15 @@ class CheckpointRisk:
     snow_level: RiskLevel | None
     load_rule_applied: str | None
     drivers: list[str] = field(default_factory=list)
+    missing: list[str] = field(default_factory=list)
 
     @property
     def is_unknown(self) -> bool:
         return self.level is None
+
+    @property
+    def is_complete(self) -> bool:
+        return not self.missing
 
     @property
     def value(self) -> int | None:
@@ -105,6 +116,7 @@ class CheckpointRisk:
             "rain_level": slug(self.rain_level),
             "snow_level": slug(self.snow_level),
             "load_rule_applied": self.load_rule_applied,
+            "missing": list(self.missing),
         }
 
 
@@ -119,11 +131,16 @@ def classify_checkpoint(
 
     The final level is the highest severity among the three conditions. `drivers` lists every
     condition that reached the final level, in the order wind, rain, snow, plus the load rule name
-    when a load rule set the wind level.
+    when a load rule set the wind level. See the module docstring for the missing-data precedence.
     """
     wind_missing = _is_missing(wind_mph)
     rain_missing = _is_missing(rain_in_per_hr)
     snow_missing = _is_missing(snow_in_per_hr)
+    missing = [
+        name
+        for name, absent in (("wind", wind_missing), ("rain", rain_missing), ("snow", snow_missing))
+        if absent
+    ]
 
     wind_level: RiskLevel | None = None
     load_rule: str | None = None
@@ -133,17 +150,21 @@ def classify_checkpoint(
     rain_level = None if rain_missing else classify_rain(rain_in_per_hr)
     snow_level = None if snow_missing else classify_snow(snow_in_per_hr)
 
-    if wind_missing or rain_missing or snow_missing:
+    known_levels = [lvl for lvl in (wind_level, rain_level, snow_level) if lvl is not None]
+    conclusive_no_travel = RiskLevel.NO_TRAVEL in known_levels
+
+    if missing and not conclusive_no_travel:
         return CheckpointRisk(
             level=None,
             wind_level=wind_level,
             rain_level=rain_level,
             snow_level=snow_level,
-            load_rule_applied=load_rule if wind_level is not None else None,
+            load_rule_applied=load_rule,
             drivers=[],
+            missing=missing,
         )
 
-    final = max(wind_level, rain_level, snow_level)
+    final = max(known_levels)
     drivers: list[str] = []
     if wind_level == final:
         drivers.append("wind")
@@ -160,4 +181,5 @@ def classify_checkpoint(
         snow_level=snow_level,
         load_rule_applied=load_rule,
         drivers=drivers,
+        missing=missing,
     )

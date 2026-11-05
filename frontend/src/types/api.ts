@@ -62,6 +62,9 @@ export interface CheckpointRisk {
   rain_level: RiskLevel | null
   snow_level: RiskLevel | null
   load_rule_applied: string | null
+  /** Measurements absent for this forecast hour (wind, rain, snow). Non-empty with a
+   *  `no_travel` level means a conclusive hazard was found despite gaps. */
+  missing: ('wind' | 'rain' | 'snow')[]
 }
 
 export interface Checkpoint {
