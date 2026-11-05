@@ -644,7 +644,7 @@ Risks and mitigations:
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
 | 1 | Project foundation and risk engine | Merged (squash, `5265147`) | 2.0 h | 0.5 h |
 | 2 | Routing, weather, recommendation backend | Merged (squash, `14b4a05`) | 4.0 h | 0.7 h |
-| 3 | React dashboard and interactive map | Ready for Codex Review | 3.5 h | 0.4 h |
+| 3 | React dashboard and interactive map | Ready for Codex Review (round 2) | 3.5 h | 0.5 h |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
 | | Reserve for review fixes and verification | | 1.0 h | |
@@ -793,8 +793,9 @@ Implementation summary:
   `setData`. All routes, the selected one highlighted, checkpoints colored by risk, start and end
   markers, fit to bounds once per analysis, click a route or a checkpoint to select it. Loaded
   lazily in its own chunk.
-- States: loading, empty, provider failure with "Try again", validation failure, last good result
-  kept on a later failure. Warnings from the API are shown.
+- States: loading, empty, provider failure with "Try again", validation failure. Results are
+  removed as soon as a new comparison starts, and every result names the trip it was computed for.
+  Warnings from the API are shown.
 - Demo mode: a sticky hazard-striped "Simulated weather" band stays on screen for as long as demo
   results are shown, with a second label on the map.
 - Responsive: one column on small screens (form, recommendation, map, cards) with the result and
@@ -812,6 +813,22 @@ errors): demo trip at 1440 x 900 and 375 x 812; a live Denver to Kansas City tri
 form (place search, real Valhalla and Open-Meteo, three route cards, 8.0 s including typing);
 clicking a checkpoint and a route line on the map; changing the load to 28,000 lb and comparing
 again; no horizontal overflow at 375 px. Screenshots: `docs/screenshots/pr3-*.png`.
+
+Codex review round 1 (2026-11-05, at `926b16c`): two P2 findings, both accepted.
+
+1. Keyboard users could not open checkpoint details: the ribbon segments were pointer-only and the
+   Previous/Next buttons only exist once a checkpoint is open. Fix: the ribbon is now a single tab
+   stop with a roving focus. Arrow, Home and End keys move between checkpoints, Enter or Space
+   opens the focused one, the tab stop returns to the selected checkpoint, the focus ring is
+   visible and each segment has a label and a pressed state. Nothing requires the map.
+2. A failed comparison left the earlier routes and recommendation on screen while the form could
+   describe a different trip. Fix: results are removed as soon as a new comparison starts, so they
+   never sit beside a pending or failed request, and every result now carries an "Analyzed trip"
+   line (origin, destination, departure, load, interval).
+
+Frontend suite after the fixes: 95 passed (8 new tests, including a keyboard-only flow through the
+whole App and a failed request after a successful one); `tsc -b`, `oxlint`, `prettier --check`
+clean. Rechecked in Chromium with the keyboard only and with the backend stopped mid-session.
 
 Known issues: none open. The heatmap layer and forecast slider are PR #4; the Playwright e2e suite
 is PR #4.
@@ -922,6 +939,8 @@ No credentials are required for the default plan.
 | 2026-11-05 | Risk ribbon on each route card | Shows where along the route the risk is, in proportion to the attributed miles, and makes three routes comparable at a glance without the map. |
 | 2026-11-05 | Checkpoint details in a panel, not a map popup; selection pushed to the map with `setData` | One place for details on every screen size and for keyboard users; three small features make `setData` as cheap as feature state. |
 | 2026-11-05 | The analysis runs on "Compare routes", not on every field change | Each analysis calls the public routing and weather services, so runs are explicit. |
+| 2026-11-05 | The risk ribbon is one tab stop with arrow-key movement (roving focus) | PR #3 review: checkpoints must be reachable without a pointer; a route can have 60 checkpoints, so one tab stop per route keeps the page navigable. |
+| 2026-11-05 | Results are cleared when a new comparison starts, and each result states its trip | PR #3 review: a recommendation must never be shown beside a form or a failed request that describes a different trip. |
 | 2026-11-05 | MapLibre is loaded lazily and its worker URL is set explicitly | Keeps the form usable before 1 MB of map code arrives; MapLibre 6 ships its worker as a separate module that the bundler must emit. |
 
 ---
@@ -938,5 +957,6 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #1 merge + PR #2 analysis backend | 10:05 | 10:41 | 0.6 h | squash merge, provider probes, TDD routing/weather/risk/heatmap/API (291 new tests), live smoke test, docs, PR |
 | 2026-11-05 | PR #2 review round 1 fix | 10:50 | 10:52 | 0.1 h | threshold precision: provider-precision classification, band-aware display, 22 tests, spec section 7 |
 | 2026-11-05 | PR #2 merge + PR #3 dashboard and map | 10:52 | 11:12 | 0.4 h | squash merge, TDD frontend (84 new tests), MapLibre map, browser verification at desktop and 375 px, docs, PR |
+| 2026-11-05 | PR #3 Codex round 1 fixes | 11:24 | 11:26 | 0.1 h | keyboard access to checkpoints (roving focus), stale results cleared, trip summary, 8 tests |
 
-Cumulative active time: 2.2 h of 16.0 h (13.8 h remain; PR #4 and #5 budgets unchanged).
+Cumulative active time: 2.3 h of 16.0 h (13.7 h remain; PR #4 and #5 budgets unchanged).

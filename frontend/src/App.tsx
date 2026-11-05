@@ -7,6 +7,7 @@ import { Legend } from './components/Legend'
 import { CheckpointDetail } from './features/route-comparison/CheckpointDetail'
 import { RecommendationBanner } from './features/route-comparison/RecommendationBanner'
 import { RouteCard } from './features/route-comparison/RouteCard'
+import { TripSummary } from './features/route-comparison/TripSummary'
 import { TripForm, type TripFormValues } from './features/trip-planner/TripForm'
 import { useRevealOnSmallScreens } from './hooks/useRevealOnSmallScreens'
 import { ApiRequestError, analyzeRoutes, fieldErrors } from './lib/api'
@@ -23,7 +24,13 @@ export default function App() {
 
   const comparison = useMutation({
     mutationFn: (trip: TripFormValues) => analyzeRoutes(trip),
-    onMutate: () => setSelectedCheckpointId(null),
+    // The form may now describe a different trip, so results for the earlier one are removed
+    // as soon as a new comparison starts. They never sit next to a failed or pending request.
+    onMutate: () => {
+      setAnalysis(null)
+      setSelectedRouteId(null)
+      setSelectedCheckpointId(null)
+    },
     onSuccess: (result) => {
       setAnalysis(result)
       setResultId(String(Date.now()))
@@ -128,6 +135,7 @@ export default function App() {
                 )}
               </div>
             )}
+            {analysis && <TripSummary analysis={analysis} />}
             {analysis && (
               <RecommendationBanner recommendation={analysis.recommendation} routes={routes} />
             )}

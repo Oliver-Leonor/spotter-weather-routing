@@ -277,18 +277,66 @@ describe('when the analysis fails', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
   })
 
-  it('keeps the last good result on screen when a later comparison fails', async () => {
+  it('never leaves an earlier result on screen when a later comparison fails', async () => {
+    // Review finding (PR #3): the form may now describe a different trip, so a recommendation
+    // from the earlier one must not stay visible next to it.
     await runDemo()
     vi.mocked(analyzeRoutes).mockRejectedValueOnce(
       new ApiRequestError(504, 'WEATHER_TIMEOUT', 'The weather service did not respond in time.'),
     )
 
+    await userEvent.clear(screen.getByLabelText('Load weight'))
+    await userEvent.type(screen.getByLabelText('Load weight'), '28000')
     await userEvent.click(screen.getByRole('button', { name: 'Compare routes' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'The weather service did not respond in time.',
     )
-    expect(screen.getAllByRole('article')).toHaveLength(3)
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Take Route B' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('note', { name: 'Simulated weather' })).not.toBeInTheDocument()
+    expect(map()).toHaveAttribute('data-routes', '0')
+  })
+
+  it('clears the earlier result as soon as a new comparison starts', async () => {
+    await runDemo()
+    vi.mocked(analyzeRoutes).mockReturnValueOnce(new Promise(() => {})) // never settles
+
+    await userEvent.click(screen.getByRole('button', { name: 'Compare routes' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Finding routes')
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Take Route B' })).not.toBeInTheDocument()
+    expect(map()).toHaveAttribute('data-routes', '0')
+  })
+})
+
+describe('which trip the result belongs to', () => {
+  it('states the analyzed trip next to the recommendation', async () => {
+    await runDemo()
+    const summary = screen.getByRole('region', { name: 'Analyzed trip' })
+    expect(summary).toHaveTextContent('Denver, Colorado, US to Kansas City, Missouri, US')
+    expect(summary).toHaveTextContent('Departs Fri, Nov 6, 8:00 AM MST')
+    expect(summary).toHaveTextContent('42,000 lb load')
+    expect(summary).toHaveTextContent('weather checked every 25 mi')
+  })
+})
+
+describe('with a keyboard only', () => {
+  it('opens checkpoint details and steps through them without touching the map', async () => {
+    await runDemo()
+    const routeA = screen.getAllByRole('article')[0]
+    within(routeA).getByRole('button', { name: 'Route A' }).focus()
+
+    await userEvent.tab() // into Route A's ribbon
+    await userEvent.keyboard('{ArrowRight}{Enter}')
+
+    const details = screen.getByRole('region', { name: 'Checkpoint details' })
+    expect(within(details).getByRole('heading', { name: 'Route A, mile 25' })).toBeInTheDocument()
+    expect(within(routeA).getByRole('button', { name: 'Mile 25, Severe' })).toHaveFocus()
+
+    await userEvent.keyboard('{ArrowRight}{Enter}')
+    expect(within(details).getByRole('heading', { name: 'Route A, mile 50' })).toBeInTheDocument()
   })
 })
 

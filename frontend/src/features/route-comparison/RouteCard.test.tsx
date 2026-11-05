@@ -89,3 +89,63 @@ describe('RouteCard', () => {
     ).toBeInTheDocument()
   })
 })
+
+// Review finding (PR #3): the ribbon was pointer-only, so keyboard users could never open the
+// checkpoint details. The ribbon is now one tab stop with arrow-key movement inside it.
+describe('RouteCard keyboard access to checkpoints', () => {
+  const segment = (name: string) => screen.getByRole('button', { name })
+
+  it('is a single tab stop that starts on the first checkpoint', async () => {
+    renderCard(blocked)
+    await userEvent.tab() // the route itself
+    expect(screen.getByRole('button', { name: /Route A/ })).toHaveFocus()
+    await userEvent.tab() // into the ribbon
+    expect(segment('Origin, Low')).toHaveFocus()
+    await userEvent.tab() // out of the ribbon again, not on to the next checkpoint
+    expect(segment('Mile 25, Severe')).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+  })
+
+  it('moves between checkpoints with the arrow, Home and End keys', async () => {
+    renderCard(blocked)
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.keyboard('{ArrowRight}')
+    expect(segment('Mile 25, Severe')).toHaveFocus()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}') // stops at the destination
+    expect(segment('Destination, Low')).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(segment('Mile 50, No Travel')).toHaveFocus()
+    await userEvent.keyboard('{Home}')
+    expect(segment('Origin, Low')).toHaveFocus()
+    await userEvent.keyboard('{End}')
+    expect(segment('Destination, Low')).toHaveFocus()
+  })
+
+  it('opens the focused checkpoint with Enter or Space', async () => {
+    const { onSelectCheckpoint } = renderCard(blocked)
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.keyboard('{ArrowRight}{Enter}')
+    expect(onSelectCheckpoint).toHaveBeenLastCalledWith('route-1', 'route-1-cp-1')
+    await userEvent.keyboard('{ArrowRight} ')
+    expect(onSelectCheckpoint).toHaveBeenLastCalledWith('route-1', 'route-1-cp-2')
+  })
+
+  it('returns to the selected checkpoint when the ribbon is entered again', async () => {
+    renderCard(blocked, { selectedCheckpointId: 'route-1-cp-2' })
+    await userEvent.tab()
+    await userEvent.tab()
+    expect(segment('Mile 50, No Travel')).toHaveFocus()
+    expect(segment('Mile 50, No Travel')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('tells keyboard users how to use the ribbon', () => {
+    renderCard(blocked)
+    expect(
+      screen.getByRole('group', { name: 'Risk along Route A, from origin to destination' }),
+    ).toHaveAccessibleDescription(
+      'Use the arrow keys to move between checkpoints and Enter to open one.',
+    )
+  })
+})
