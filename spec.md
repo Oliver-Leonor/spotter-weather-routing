@@ -782,7 +782,7 @@ No credentials are required for the default plan.
 |---|---|---|---|---:|---|
 | 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:17 | 0.5 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md, decisions, bootstrap push |
 | 2026-11-05 | PR #1 foundation + risk engine | 09:17 | 09:35 | 0.3 h | Django/DRF scaffold, TDD risk classifier (60 tests), Vite/React scaffold (3 tests), Vercel smoke deploy + debugging, docs, PR |
-| 2026-11-05 | PR #1 Codex round 1 fix | 09:40 | 09:48 | 0.1 h | JSON handler404/handler500 + tests, redeploy |
-| 2026-11-05 | PR #1 Codex round 2 fix | 09:52 | 10:00 | 0.1 h | conclusive No Travel precedence over missing data, `missing` field, 8 tests, spec section 7 |
+| 2026-11-05 | PR #1 Codex round 1 fix | 09:31 | 09:38 | 0.1 h | JSON handler404/handler500 + tests, redeploy |
+| 2026-11-05 | PR #1 Codex round 2 fix | 09:39 | 09:47 | 0.1 h | conclusive No Travel precedence over missing data, `missing` field, 8 tests, spec section 7 |
 
 Cumulative active time: 1.0 h of 16.0 h (reforecast after PR #1 round 2: 15.0 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).
