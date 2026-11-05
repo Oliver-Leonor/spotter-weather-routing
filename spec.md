@@ -587,12 +587,12 @@ Risks and mitigations:
 | PR | Title | Status | Budget | Actual |
 |---|---|---|---:|---:|
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
-| 1 | Project foundation and risk engine | In Progress | 2.0 h | |
+| 1 | Project foundation and risk engine | Ready for Codex Review | 2.0 h | 0.3 h |
 | 2 | Routing, weather, recommendation backend | Not Started | 4.0 h | |
 | 3 | React dashboard and interactive map | Not Started | 3.5 h | |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
-| | Reserve for review fixes and verification | | 0.5 h | |
+| | Reserve for review fixes and verification | | 1.0 h | |
 | | **Total** | | **16.0 h** | |
 
 ### PR #0 (bootstrap, pushed directly to `main` with Oliver's go-ahead)
@@ -609,6 +609,32 @@ Tailwind and routing shell, shared API types (`frontend/src/types/api.ts`), `ris
 of the backend health endpoint on the personal account (hosting smoke test requested by Oliver).
 Acceptance: `python manage.py runserver` serves `/api/health/`; `npm run dev` renders the shell;
 `pytest` passes the full boundary table (section 7); logic is pure and deterministic.
+
+**Status: Ready for Codex Review** (2026-11-05). PR: https://github.com/Oliver-Leonor/spotter-weather-routing/pull/1
+(branch `feat/pr1-foundation-risk-engine`).
+
+Implementation summary:
+- Backend: Django 6.1.3 + DRF 3.18.3, settings split (`base`/`dev`/`test`/`prod`), no database,
+  JSON-only renderer, uniform error envelope (`analysis/exceptions.py`, also defines `UpstreamError`
+  for PR #2), CORS, anon throttle, `GET /api/health/`.
+- Risk engine: `risk/levels.py` (`RiskLevel` IntEnum 0..4), `risk/classification.py` (pure
+  `classify_wind/rain/snow`, `apply_load_rules`, `classify_checkpoint` returning a frozen
+  `CheckpointRisk` with per-condition levels, drivers and the applied load rule; missing/NaN/negative
+  inputs yield `unknown`, never Low).
+- Frontend: Vite 8 + React 19 + TypeScript strict + Tailwind 4 + TanStack Query + MapLibre GL +
+  lucide (installed, map wiring in PR #3), app shell with empty state, `types/api.ts` contract,
+  `lib/risk.ts` colors/labels/values, Vitest + RTL + jsdom, Prettier, oxlint.
+- Hosting smoke test (requested by Oliver): backend deployed to the personal Vercel Hobby account,
+  project `stormroute-api`, public domain https://stormroute-api-navy.vercel.app/api/health/
+  verified live with production settings (`DEBUG=False`, HTTPS redirect 308, HSTS, CORS limited to
+  the configured origin, custom 405/404 envelopes). Findings recorded in the decision log.
+
+Test results (2026-11-05): backend `pytest` 60 passed (58 risk-table/boundary/load/missing-data
+cases + 2 health API), `ruff check` and `ruff format --check` clean; frontend `vitest` 3 passed,
+`tsc -b` clean, `oxlint` clean, `prettier --check` clean, `vite build` OK.
+
+Known issues: none open. Frontend map/heatmap and all provider code are intentionally absent (PR #2
+to #4).
 
 ### PR #2: Routing, weather and recommendation backend
 
@@ -678,7 +704,7 @@ No credentials are required for the default plan.
 ## 16. Progress checklist (final acceptance)
 
 - [ ] React frontend implemented
-- [ ] Django backend implemented
+- [ ] Django backend implemented (scaffold + risk engine + health in PR #1)
 - [ ] Origin and destination work
 - [ ] Departure date and time work
 - [ ] Load weight works
@@ -687,8 +713,8 @@ No credentials are required for the default plan.
 - [ ] 10/25/50-mile checkpoint sampling works
 - [ ] Checkpoint ETAs are calculated
 - [ ] Weather is retrieved for checkpoint arrival times
-- [ ] All Spotter risk rules are correctly implemented
-- [ ] Load-dependent rules work
+- [x] All Spotter risk rules are correctly implemented (PR #1, 58 boundary tests; route-level wiring in PR #2)
+- [x] Load-dependent rules work (PR #1 classifier; end-to-end in PR #2)
 - [ ] No Travel rules work
 - [ ] Route recommendations follow the required priority order
 - [ ] All routes are displayed on the map
@@ -717,6 +743,8 @@ No credentials are required for the default plan.
 | 2026-11-05 | MapLibre GL + OpenFreeMap instead of Mapbox GL | No token in the browser, no billing, unlimited tile use per OpenFreeMap. |
 | 2026-11-05 | Open-Meteo with `wind_speed_unit=mph`, `precipitation_unit=inch`, unit validation + fallback conversion | Verified `hourly_units` output; belt-and-braces against unit drift. |
 | 2026-11-05 | Oliver approved: personal Vercel for both apps, Valhalla default, bootstrap push to main, PR #1 start; deadline still unconfirmed | Review gate decisions D1 to D4. |
+| 2026-11-05 | Vercel Django preset: framework must be set to `django` on the project, dependencies must be listed in `pyproject.toml` `[project].dependencies` (a lone `requirements.txt` is ignored), Python from `.python-version` (3.14 works) | Found during the PR #1 hosting smoke test; first deploy was treated as static files and the `.vercel.app` name `stormroute-api` was already taken by someone else (our domain is `stormroute-api-navy.vercel.app`). |
+| 2026-11-05 | Early production deployment of the health-only backend | First CLI deploy of a new project went to production automatically; it carries no provider calls, so the FOSSGIS notification condition (D3) is not yet triggered. |
 | 2026-11-05 | Nearest-hour forecast selection | Simple, documented, testable; interpolation adds little at hourly resolution. |
 | 2026-11-05 | Nearest-checkpoint (midpoint split) mileage attribution | Unbiased, sums exactly to total, handles the final partial segment. |
 | 2026-11-05 | Heatmap as GeoJSON cell grid with per-hour properties and paint-expression switching | Zero network and zero data rebuild per slider move. |
@@ -727,6 +755,7 @@ No credentials are required for the default plan.
 
 | Date (Asia/Manila) | Phase | Start | End | Active | Notes |
 |---|---|---|---|---:|---|
-| 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:15 | 0.4 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md |
+| 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:17 | 0.5 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md, decisions, bootstrap push |
+| 2026-11-05 | PR #1 foundation + risk engine | 09:17 | 09:35 | 0.3 h | Django/DRF scaffold, TDD risk classifier (60 tests), Vite/React scaffold (3 tests), Vercel smoke deploy + debugging, docs, PR |
 
-Cumulative active time: see table. Budget: 16.0 h.
+Cumulative active time: 0.8 h of 16.0 h (reforecast after PR #1: 15.2 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).
