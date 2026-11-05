@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -15,14 +15,28 @@ vi.mock('./lib/api', async (original) => ({
 
 // MapLibre needs WebGL, which jsdom does not have. The stub exposes what the map was given and
 // lets a test act as a click on the map.
-vi.mock('./features/route-map/RouteMap', () => ({
-  default: (props: any) => (
+vi.mock('./features/route-map/RouteMap', async () => {
+  const { useSyncExternalStore } = await import('react')
+  return {
+    default: function MapStub(props: any) {
+      // Like the real map, the stub follows the forecast hour through the store, not through props.
+      const hour = useSyncExternalStore(props.hourStore.subscribe, props.hourStore.get)
+      return <MapStubView {...props} hour={hour} />
+    },
+  }
+})
+
+function MapStubView(props: any) {
+  return (
     <div
       data-testid="map"
       data-routes={props.routes.length}
       data-selected-route={props.selectedRouteId ?? ''}
       data-selected-checkpoint={props.selectedCheckpointId ?? ''}
       data-demo={String(props.isDemo)}
+      data-cells={props.heatmap?.cells.length ?? 0}
+      data-hour={props.hour}
+      data-layers={JSON.stringify(props.layers)}
     >
       <button type="button" onClick={() => props.onSelectCheckpoint('route-1', 'route-1-cp-2')}>
         map: checkpoint on Route A
@@ -31,8 +45,8 @@ vi.mock('./features/route-map/RouteMap', () => ({
         map: Route C line
       </button>
     </div>
-  ),
-}))
+  )
+}
 
 const demoAnalysis = (): AnalyzeResponse => {
   const analysis = makeAnalysis()
@@ -422,5 +436,77 @@ describe('on a small screen', () => {
     await userEvent.click(screen.getByRole('button', { name: 'map: checkpoint on Route A' }))
     expect(scrollIntoView).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
+  })
+})
+
+describe('corridor forecast', () => {
+  const slider = () => screen.getByRole('slider', { name: 'Corridor forecast time' })
+
+  it('is not offered before a trip is compared', async () => {
+    renderApp()
+    await screen.findByTestId('map')
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+    expect(map()).toHaveAttribute('data-cells', '0')
+  })
+
+  it('gives the map the corridor cells once and starts at the departure hour', async () => {
+    await runDemo()
+    expect(map()).toHaveAttribute('data-cells', '2')
+    expect(map()).toHaveAttribute('data-hour', '0')
+    expect(slider()).toHaveValue('0')
+    expect(screen.getByText('Fri, Nov 6, 8:00 AM MST')).toBeInTheDocument()
+  })
+
+  it('moves the map to the chosen hour without another analysis request', async () => {
+    await runDemo()
+    expect(analyzeRoutes).toHaveBeenCalledTimes(1)
+
+    fireEvent.change(slider(), { target: { value: '6' } })
+
+    await waitFor(() => expect(map()).toHaveAttribute('data-hour', '6'))
+    expect(screen.getByText('Fri, Nov 6, 2:00 PM MST')).toBeInTheDocument()
+    expect(analyzeRoutes).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns to the departure hour for a new comparison', async () => {
+    await runDemo()
+    fireEvent.change(slider(), { target: { value: '20' } })
+    await waitFor(() => expect(map()).toHaveAttribute('data-hour', '20'))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Compare routes' }))
+
+    await waitFor(() => expect(analyzeRoutes).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(map()).toHaveAttribute('data-hour', '0'))
+    expect(await screen.findByRole('slider', { name: 'Corridor forecast time' })).toHaveValue('0')
+  })
+
+  it('switches map layers on and off', async () => {
+    await runDemo()
+    expect(map()).toHaveAttribute(
+      'data-layers',
+      JSON.stringify({ heatmap: true, checkpoints: true, otherRoutes: true }),
+    )
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Weather corridor' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Other routes' }))
+    expect(map()).toHaveAttribute(
+      'data-layers',
+      JSON.stringify({ heatmap: false, checkpoints: true, otherRoutes: false }),
+    )
+  })
+
+  it('says so when the corridor forecast could not be loaded, and keeps the routes', async () => {
+    const analysis = demoAnalysis()
+    analysis.heatmap = { ...analysis.heatmap, cells: [] }
+    analysis.warnings.push({
+      code: 'HEATMAP_UNAVAILABLE',
+      message:
+        'The corridor weather heatmap could not be loaded. Route and checkpoint results are not affected.',
+    })
+    await runDemo(analysis)
+
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+    expect(screen.getByText(/The corridor weather heatmap could not be loaded/)).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Weather corridor' })).toBeDisabled()
+    expect(screen.getAllByRole('article')).toHaveLength(3)
   })
 })

@@ -148,14 +148,35 @@ export function makeAnalysis(overrides: Partial<AnalyzeResponse> = {}): AnalyzeR
       unverified_route_ids: ['route-3'],
     },
     warnings: [],
-    heatmap: {
-      base_time: '2026-11-06T15:00:00Z',
-      hours: [],
-      cell_size_miles: 23,
-      lat_step: 0.33,
-      lon_step: 0.43,
-      cells: [],
-    },
+    heatmap: makeHeatmap(),
     ...overrides,
+  }
+}
+
+/** 49 hourly timestamps from the departure hour, and two cells: one calm, one with a storm. */
+export function makeHeatmap(): AnalyzeResponse['heatmap'] {
+  const base = Date.parse('2026-11-06T15:00:00Z')
+  const hours = Array.from({ length: 49 }, (_, i) =>
+    new Date(base + i * 3_600_000).toISOString().replace('.000Z', 'Z'),
+  )
+  const calm = hours.map(() => 0)
+  const stormy = hours.map((_, i) => (i >= 4 && i <= 8 ? 3 : 0))
+  return {
+    base_time: hours[0],
+    hours,
+    cell_size_miles: 23,
+    lat_step: 0.33,
+    lon_step: 0.43,
+    cells: [
+      { lat: 39, lon: -100, risk: calm, wind: calm, rain: calm, snow: calm },
+      {
+        lat: 39.33,
+        lon: -100,
+        risk: stormy,
+        wind: stormy.map((r) => (r ? 47 : 5)),
+        rain: calm,
+        snow: calm,
+      },
+    ],
   }
 }

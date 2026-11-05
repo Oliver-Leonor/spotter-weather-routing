@@ -10,7 +10,11 @@ import {
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { RISK_COLORS } from '../../lib/risk'
-import type { RouteAnalysis } from '../../types/api'
+import type { Heatmap, RouteAnalysis } from '../../types/api'
+import { heatmapFeatures, riskFillColor, riskFillOpacity } from '../heatmap/heatmapData'
+import type { HourStore } from '../heatmap/hourStore'
+import type { MapLayers } from '../heatmap/LayerToggles'
+import { truckPositionAt } from '../heatmap/truck'
 import { boundsOf, checkpointFeatures, routeFeatures, type Bounds } from './mapData'
 
 interface Props {
@@ -21,6 +25,11 @@ interface Props {
   /** Changes when a new analysis arrives; the map only re-fits its view then. */
   fitKey: string | null
   isDemo: boolean
+  /** Corridor forecast cells, or null before an analysis. */
+  heatmap: Heatmap | null
+  /** The forecast hour chosen on the slider. The map subscribes to it; it is not a prop. */
+  hourStore: HourStore
+  layers: MapLayers
   onSelectRoute: (routeId: string) => void
   onSelectCheckpoint: (routeId: string, checkpointId: string) => void
 }
@@ -55,8 +64,25 @@ const LEVEL_COLOR: ExpressionSpecification = [
 ]
 
 function addLayers(map: MapLibreMap) {
+  map.addSource('heatmap', { type: 'geojson', data: EMPTY })
   map.addSource('routes', { type: 'geojson', data: EMPTY })
   map.addSource('checkpoints', { type: 'geojson', data: EMPTY })
+
+  // The corridor shading goes under the basemap's labels, so place names stay readable.
+  const firstLabelLayer = map.getStyle().layers.find((layer) => layer.type === 'symbol')?.id
+  map.addLayer(
+    {
+      id: 'heatmap-fill',
+      type: 'fill',
+      source: 'heatmap',
+      paint: {
+        'fill-color': riskFillColor(0),
+        'fill-opacity': riskFillOpacity(0),
+        'fill-outline-color': 'rgba(255,255,255,0.45)',
+      },
+    },
+    firstLabelLayer,
+  )
 
   const line = { 'line-cap': 'round', 'line-join': 'round' } as const
   map.addLayer({
@@ -135,6 +161,13 @@ function hasWebGL(): boolean {
   return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'))
 }
 
+function truckMarker(): HTMLElement {
+  const element = document.createElement('div')
+  element.className = 'map-truck'
+  element.title = 'Where the truck is expected to be at the chosen forecast time'
+  return element
+}
+
 function endpointMarker(label: string): HTMLElement {
   const element = document.createElement('div')
   element.className = 'map-endpoint'
@@ -153,6 +186,9 @@ export default function RouteMap({
   selectedCheckpointId,
   fitKey,
   isDemo,
+  heatmap,
+  hourStore,
+  layers,
   onSelectRoute,
   onSelectCheckpoint,
 }: Props) {
@@ -248,6 +284,51 @@ export default function RouteMap({
     if (!map || fitKey === null) return
     return showAnalysis(map)
   }, [map, fitKey])
+
+  // Corridor cells are handed to the map once per analysis. Each cell already carries its risk
+  // for all 49 hours, so the slider below never rebuilds this source.
+  useEffect(() => {
+    if (!map) return
+    map.getSource<GeoJSONSource>('heatmap')?.setData(heatmap ? heatmapFeatures(heatmap) : EMPTY)
+  }, [map, heatmap])
+
+  // The forecast hour arrives through the store, not through React state. A slider move swaps
+  // two paint expressions and moves one marker: no network request, no source rebuild, no render.
+  useEffect(() => {
+    const hours = heatmap?.hours ?? []
+    if (!map || hours.length === 0) return
+    const route = routes.find((candidate) => candidate.id === selectedRouteId)
+    const truck = route ? new Marker({ element: truckMarker() }) : null
+
+    const showHour = () => {
+      const hour = Math.min(hourStore.get(), hours.length - 1)
+      map.setPaintProperty('heatmap-fill', 'fill-color', riskFillColor(hour))
+      map.setPaintProperty('heatmap-fill', 'fill-opacity', riskFillOpacity(hour))
+      if (route && truck) {
+        const position = truckPositionAt(route, Date.parse(hours[hour]))
+        truck.setLngLat([position.lon, position.lat]).addTo(map)
+      }
+    }
+    showHour()
+    const unsubscribe = hourStore.subscribe(showHour)
+    return () => {
+      unsubscribe()
+      truck?.remove()
+    }
+  }, [map, heatmap, hourStore, routes, selectedRouteId])
+
+  useEffect(() => {
+    if (!map) return
+    const show = (layer: string, visible: boolean) =>
+      map.setLayoutProperty(layer, 'visibility', visible ? 'visible' : 'none')
+    show('heatmap-fill', layers.heatmap)
+    show('checkpoints', layers.checkpoints)
+    show('checkpoint-selected', layers.checkpoints)
+    show('checkpoints-other', layers.checkpoints && layers.otherRoutes)
+    show('routes-other', layers.otherRoutes)
+    // A hidden route must not be selectable by clicking where it would have been.
+    map.setFilter('routes-hit', layers.otherRoutes ? null : ['get', 'selected'])
+  }, [map, layers])
 
   return (
     <div className="relative h-full w-full">
