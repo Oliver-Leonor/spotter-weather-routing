@@ -4,13 +4,14 @@ Spotter full-stack take-home: a React + Django application that compares real ro
 hourly weather forecasts at each checkpoint's estimated arrival time, applies Spotter's risk rules
 and load-dependent adjustments, and recommends the safer route.
 
-Work in progress. The backend analysis API, the trip form, the route comparison and the interactive
-map are complete; the weather heatmap and forecast slider are next. The project
+The backend analysis API, the trip form, the route comparison, the interactive map and the corridor
+weather heatmap with its 0 to 48 hour forecast slider are complete. Deployment and the final
+documentation pass are next. The project
 specification, decisions and progress live in [`spec.md`](./spec.md), the architecture overview is
 in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), and every modelling assumption is listed in
 [`docs/ASSUMPTIONS.md`](./docs/ASSUMPTIONS.md).
 
-![StormRoute comparing three Denver to Kansas City routes in demo mode](./docs/screenshots/pr3-desktop-demo.png)
+![StormRoute: three Denver to Kansas City routes with the corridor forecast at the storm hour (demo mode)](./docs/screenshots/pr4-desktop-heatmap.png)
 
 ## Quick start
 
@@ -28,6 +29,7 @@ cd frontend
 nvm use && npm install
 npm run dev                              # http://localhost:5173
 npm test && npm run typecheck && npm run lint
+npm run e2e                              # Playwright, mocked backend, desktop and phone widths
 ```
 
 Copy `.env.example` to `.env` at the repository root for backend settings and to `frontend/.env`

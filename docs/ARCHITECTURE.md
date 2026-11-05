@@ -87,7 +87,14 @@ Steps 4, 5, 7, 8 and 9 are pure functions and are tested without any network.
 - `App.tsx` holds the three pieces of state that everything else derives from: the last analysis,
   the selected route and the selected checkpoint. The analysis request is a TanStack Query
   mutation; place search is a debounced query.
-- `features/heatmap` (corridor layer and forecast slider) arrives in PR #4.
+- `features/heatmap`: `heatmapData.ts` turns the corridor cells into one GeoJSON source in which
+  every cell carries its risk for all 49 hours, plus the paint expressions for a given hour.
+  `hourStore.ts` holds the slider's hour outside React; `ForecastSlider.tsx` writes it (at most
+  once per animation frame) and the map subscribes to it, so a slider move swaps paint
+  expressions without a request, a source rebuild or a page re-render. `truck.ts` places the
+  truck on the selected route at that hour.
+- `e2e/`: Playwright specs at a desktop and a phone width against a mocked backend
+  (`e2e/support.ts`), using recorded responses of the real backend.
 
 ## Hosting (verified in PR #1)
 
