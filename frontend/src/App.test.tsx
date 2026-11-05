@@ -277,6 +277,55 @@ describe('when the analysis fails', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
   })
 
+  // Codex finding (PR #3, round 2): with demo mode disabled on the server the 400 carries
+  // `details.mode`, which has no input in the form. "Check the highlighted fields" then pointed
+  // at nothing and the real reason was invisible.
+  it('shows a validation message that belongs to no form field', async () => {
+    vi.mocked(analyzeRoutes).mockRejectedValueOnce(
+      new ApiRequestError(400, 'VALIDATION_ERROR', 'Invalid request.', {
+        details: { mode: ['Demo mode is not enabled on this server.'] },
+      }),
+    )
+    renderApp()
+    await userEvent.click(screen.getByRole('button', { name: 'Run the demo trip' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Demo mode is not enabled on this server.')
+    expect(alert).not.toHaveTextContent('Check the highlighted fields')
+    expect(within(alert).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+  })
+
+  it('shows both when some messages belong to fields and some do not', async () => {
+    vi.mocked(analyzeRoutes).mockRejectedValueOnce(
+      new ApiRequestError(400, 'VALIDATION_ERROR', 'Invalid request.', {
+        details: {
+          destination: ['Origin and destination must be different places.'],
+          checkpoint_interval_miles: ['"30" is not a valid choice.'],
+          non_field_errors: ['This trip cannot be analyzed.'],
+        },
+      }),
+    )
+    renderApp()
+    await userEvent.click(screen.getByRole('button', { name: 'Run the demo trip' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Check the highlighted fields and compare again.')
+    expect(alert).toHaveTextContent('"30" is not a valid choice.')
+    expect(alert).toHaveTextContent('This trip cannot be analyzed.')
+    // The destination message is shown once, on its field, not repeated in the alert.
+    expect(alert).not.toHaveTextContent('Origin and destination must be different places.')
+    expect(screen.getByText('Origin and destination must be different places.')).toBeInTheDocument()
+  })
+
+  it('falls back to the server message when a validation error has no details', async () => {
+    vi.mocked(analyzeRoutes).mockRejectedValueOnce(
+      new ApiRequestError(400, 'VALIDATION_ERROR', 'Invalid request.'),
+    )
+    renderApp()
+    await userEvent.click(screen.getByRole('button', { name: 'Run the demo trip' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid request.')
+  })
+
   it('never leaves an earlier result on screen when a later comparison fails', async () => {
     // Review finding (PR #3): the form may now describe a different trip, so a recommendation
     // from the earlier one must not stay visible next to it.

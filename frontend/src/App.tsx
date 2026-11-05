@@ -8,6 +8,7 @@ import { CheckpointDetail } from './features/route-comparison/CheckpointDetail'
 import { RecommendationBanner } from './features/route-comparison/RecommendationBanner'
 import { RouteCard } from './features/route-comparison/RouteCard'
 import { TripSummary } from './features/route-comparison/TripSummary'
+import { TRIP_FORM_FIELDS } from './features/trip-planner/fields'
 import { TripForm, type TripFormValues } from './features/trip-planner/TripForm'
 import { useRevealOnSmallScreens } from './hooks/useRevealOnSmallScreens'
 import { ApiRequestError, analyzeRoutes, fieldErrors } from './lib/api'
@@ -15,6 +16,26 @@ import type { AnalyzeResponse } from './types/api'
 
 // MapLibre is most of the JavaScript, so it loads on its own while the form is already usable.
 const RouteMap = lazy(() => import('./features/route-map/RouteMap'))
+
+/**
+ * What the error alert says. A rejected field is explained on that field in the form, so the
+ * alert only points there. A message for a field that has no input in the form (the demo mode
+ * being disabled on the server, for example) is shown here, or nobody would ever see it.
+ */
+function alertMessages(
+  error: Error,
+  isValidationError: boolean,
+  fieldMessages: Record<string, string>,
+): string[] {
+  if (!isValidationError) return [error.message]
+  const formFields: readonly string[] = TRIP_FORM_FIELDS
+  const fields = Object.keys(fieldMessages)
+  const messages = fields.some((field) => formFields.includes(field))
+    ? ['Check the highlighted fields and compare again.']
+    : []
+  messages.push(...fields.filter((f) => !formFields.includes(f)).map((f) => fieldMessages[f]))
+  return messages.length > 0 ? messages : [error.message]
+}
 
 export default function App() {
   const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null)
@@ -55,6 +76,7 @@ export default function App() {
   const error = comparison.error
   const serverFieldErrors = fieldErrors(error)
   const isValidationError = error instanceof ApiRequestError && error.code === 'VALIDATION_ERROR'
+  const errorMessages = error ? alertMessages(error, isValidationError, serverFieldErrors) : []
 
   function selectRoute(routeId: string) {
     setSelectedRouteId(routeId)
@@ -115,15 +137,17 @@ export default function App() {
                 role="alert"
                 className="rounded-lg border border-risk-severe bg-red-50 p-3 text-sm text-ink"
               >
-                <p className="flex items-start gap-2 font-medium">
+                <div className="flex items-start gap-2 font-medium">
                   <TriangleAlert
                     className="mt-0.5 h-4 w-4 shrink-0 text-risk-severe"
                     aria-hidden="true"
                   />
-                  {isValidationError
-                    ? 'Check the highlighted fields and compare again.'
-                    : error.message}
-                </p>
+                  <div className="flex flex-col gap-1">
+                    {errorMessages.map((message) => (
+                      <p key={message}>{message}</p>
+                    ))}
+                  </div>
+                </div>
                 {!isValidationError && comparison.variables && (
                   <button
                     type="button"

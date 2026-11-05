@@ -644,7 +644,7 @@ Risks and mitigations:
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
 | 1 | Project foundation and risk engine | Merged (squash, `5265147`) | 2.0 h | 0.5 h |
 | 2 | Routing, weather, recommendation backend | Merged (squash, `14b4a05`) | 4.0 h | 0.7 h |
-| 3 | React dashboard and interactive map | Ready for Codex Review (round 2) | 3.5 h | 0.5 h |
+| 3 | React dashboard and interactive map | Ready for Codex Review (round 3) | 3.5 h | 0.6 h |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
 | | Reserve for review fixes and verification | | 1.0 h | |
@@ -830,6 +830,16 @@ Frontend suite after the fixes: 95 passed (8 new tests, including a keyboard-onl
 whole App and a failed request after a successful one); `tsc -b`, `oxlint`, `prettier --check`
 clean. Rechecked in Chromium with the keyboard only and with the backend stopped mid-session.
 
+Codex review round 2 (2026-11-05, at `0d84a64`): both round 1 fixes verified; one new P2 finding,
+accepted. A validation error for a request field that has no input in the form was invisible: with
+`ALLOW_FIXTURE_MODE=false` the 400 carries `details.mode`, and the alert only said "Check the
+highlighted fields" with nothing highlighted. Fix: the alert now lists every validation message
+whose field has no input in the form (`mode`, `checkpoint_interval_miles`, non-field errors), says
+"Check the highlighted fields" only when a form field really is highlighted, and falls back to the
+server message when there are no details. Frontend suite: 98 passed (3 new tests). Rechecked in
+Chromium against a backend started with demo mode disabled: the alert reads "Demo mode is not
+enabled on this server."
+
 Known issues: none open. The heatmap layer and forecast slider are PR #4; the Playwright e2e suite
 is PR #4.
 
@@ -958,5 +968,6 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #2 review round 1 fix | 10:50 | 10:52 | 0.1 h | threshold precision: provider-precision classification, band-aware display, 22 tests, spec section 7 |
 | 2026-11-05 | PR #2 merge + PR #3 dashboard and map | 10:52 | 11:12 | 0.4 h | squash merge, TDD frontend (84 new tests), MapLibre map, browser verification at desktop and 375 px, docs, PR |
 | 2026-11-05 | PR #3 Codex round 1 fixes | 11:24 | 11:26 | 0.1 h | keyboard access to checkpoints (roving focus), stale results cleared, trip summary, 8 tests |
+| 2026-11-05 | PR #3 Codex round 2 fix | 11:43 | 11:46 | 0.1 h | validation messages without a form field shown in the alert, 3 tests, browser check with demo mode disabled |
 
-Cumulative active time: 2.3 h of 16.0 h (13.7 h remain; PR #4 and #5 budgets unchanged).
+Cumulative active time: 2.4 h of 16.0 h (13.6 h remain; PR #4 and #5 budgets unchanged).

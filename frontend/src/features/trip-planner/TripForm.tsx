@@ -2,6 +2,7 @@ import { FlaskConical, Route } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { datetimeLocalToIso, toDatetimeLocalValue } from '../../lib/format'
 import type { AnalysisMode, AnalyzeRequest, CheckpointInterval, LatLon } from '../../types/api'
+import type { TripFormField } from './fields'
 import { PlaceInput } from './PlaceInput'
 
 export type TripFormValues = AnalyzeRequest & { mode: AnalysisMode }
@@ -43,9 +44,7 @@ function localOffsetLabel(): string {
   return `GMT${minutes >= 0 ? '+' : '-'}${hours}${rest ? `:${String(rest).padStart(2, '0')}` : ''}`
 }
 
-type Errors = Partial<
-  Record<'origin' | 'destination' | 'departure_time' | 'load_weight_lb', string>
->
+type Errors = Partial<Record<TripFormField, string>>
 
 export function TripForm({ onSubmit, isLoading, serverErrors, now }: Props) {
   const ids = { departure: useId(), load: useId() }
