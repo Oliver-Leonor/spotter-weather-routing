@@ -5,11 +5,13 @@ StormRoute deploys as two projects on Vercel's free Hobby plan, on Oliver's pers
 
 | Part | Vercel project | What it is |
 |---|---|---|
-| Backend | `stormroute-api` (exists) | Django as a Python function. Domain `stormroute-api-navy.vercel.app` |
-| Frontend | `stormroute` (to be created) | Static Vite build from `frontend/` |
+| Backend | `stormroute-api` | Django as a Python function. https://stormroute-api-navy.vercel.app |
+| Frontend | `stormroute` | Static Vite build from `frontend/`. https://stormroute-three.vercel.app |
 
-Current state: the backend project serves only the health endpoint from PR #1. The analysis
-endpoints and the frontend have **not** been deployed.
+Current state: both were deployed to production on 2026-11-05 and verified (see
+[`VERIFICATION.md`](./VERIFICATION.md)). The plan is Hobby and the scope is the personal one,
+`oliverleonor90s-projects`. The bare names `stormroute.vercel.app` and `stormroute-api.vercel.app`
+belong to other people, which is why the domains carry a suffix.
 
 ## Before the first public deployment
 
@@ -47,8 +49,9 @@ usage notice: <app>". The notice for StormRoute, with the title
 > If this use is not welcome, please tell me and I will disable live routing until I have
 > configured another routing source. Thank you for running the service.
 
-Oliver approved posting this on 2026-11-05 (D3 in `spec.md`). If the maintainers object, live
-routing is switched off until another routing source is configured.
+Oliver posted it on 2026-11-05, before the deployment: https://github.com/valhalla/valhalla/discussions/6465
+(D3 in `spec.md`). If the maintainers object, live routing is switched off until another routing
+source is configured.
 
 ## Backend
 
@@ -58,10 +61,10 @@ Environment variables for the **Production** environment of `stormroute-api`:
 |---|---|
 | `DJANGO_SETTINGS_MODULE` | `config.settings.prod` |
 | `DJANGO_SECRET_KEY` | a long random string (already set) |
-| `DJANGO_ALLOWED_HOSTS` | `stormroute-api-navy.vercel.app` |
-| `CORS_ALLOWED_ORIGINS` | the frontend origin, for example `https://stormroute.vercel.app` |
-| `VALHALLA_CLIENT_ID` | the frontend domain, for example `stormroute.vercel.app` |
-| `ALLOW_FIXTURE_MODE` | `true` (keeps the labeled demo available) |
+| `DJANGO_ALLOWED_HOSTS` | `stormroute-api-navy.vercel.app` (already set) |
+| `CORS_ALLOWED_ORIGINS` | `https://stormroute-three.vercel.app` (set on 2026-11-05) |
+| `VALHALLA_CLIENT_ID` | `stormroute-three.vercel.app` (set on 2026-11-05) |
+| `ALLOW_FIXTURE_MODE` | `true` (set on 2026-11-05; keeps the labeled demo available) |
 | `APP_CONTACT_EMAIL` | optional: a contact address added to the `User-Agent` |
 
 ```bash
@@ -90,7 +93,13 @@ long-lived caching for the hashed assets. `VITE_API_BASE_URL` is read at build t
 frontend must be redeployed if the backend address changes.
 
 Order: deploy the frontend once to learn its domain, set `CORS_ALLOWED_ORIGINS` and
-`VALHALLA_CLIENT_ID` on the backend to that domain, then deploy the backend.
+`VALHALLA_CLIENT_ID` on the backend to that domain, then deploy the backend. This is the order
+that was used.
+
+Vercel stores these variables encrypted, and `vercel env pull` returns them empty, so their values
+cannot be read back. They were confirmed by behavior instead: the health check passes (settings
+module, secret and allowed hosts), and the CORS checks allow the frontend origin and refuse
+another one.
 
 ## Verify
 

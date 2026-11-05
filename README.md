@@ -11,8 +11,8 @@ Built for the Spotter Full Stack Developer take-home assessment by Oliver Leonor
 
 | | |
 |---|---|
-| Hosted application | Not deployed yet. See [Deployment](#deployment). |
-| Backend health check | https://stormroute-api-navy.vercel.app/api/health/ (health endpoint only, from PR #1) |
+| Hosted application | https://stormroute-three.vercel.app |
+| Backend API | https://stormroute-api-navy.vercel.app (health check: [`/api/health/`](https://stormroute-api-navy.vercel.app/api/health/)) |
 | Walkthrough video | To be recorded. Script: [`docs/LOOM_SCRIPT.md`](./docs/LOOM_SCRIPT.md) |
 | Specification and decisions | [`spec.md`](./spec.md) |
 | Architecture | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) |
@@ -173,10 +173,14 @@ never calls the public providers.
 
 ## Deployment
 
-Both parts are built for Vercel's free Hobby plan: the Django backend as a Python function and
-the frontend as a static Vite build. The steps, the environment variables and a script that
-verifies a deployment end to end are in [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). Results are
-recorded in [`docs/VERIFICATION.md`](./docs/VERIFICATION.md).
+Both parts run on Vercel's free Hobby plan: the Django backend as a Python function and the
+frontend as a static Vite build. The steps, the environment variables and a script that verifies
+a deployment end to end are in [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). The production
+checks of 2026-11-05 are recorded in [`docs/VERIFICATION.md`](./docs/VERIFICATION.md).
+
+The routing requests go to the public Valhalla server run by FOSSGIS. As its documentation asks,
+the app identifies itself on every request and the maintainers were told about it in
+[this usage notice](https://github.com/valhalla/valhalla/discussions/6465). StormRoute is a non-commercial assessment and portfolio demo.
 
 ## Assumptions and limitations
 
