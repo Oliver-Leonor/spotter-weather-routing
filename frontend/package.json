@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.4",

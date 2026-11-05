@@ -48,6 +48,32 @@ export function formatLocalTime(iso: string, timeZone: string | null): string {
   })
 }
 
+/** Weekday and hour in the given zone, for example "Fri 8 AM". Used for slider tick marks. */
+export function formatDayHour(iso: string, timeZone: string | null): string {
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat('en-US', { weekday: 'short', hour: 'numeric', timeZone: zone })
+      .format(new Date(iso))
+      .replace(/\u202f/g, ' ')
+      .replace(',', '')
+  try {
+    return format(timeZone ?? 'UTC')
+  } catch {
+    return format('UTC')
+  }
+}
+
+/**
+ * How a moment relates to the departure, for example "45 min before departure" or
+ * "1 h 15 min after departure". The forecast hours start at the top of the departure hour, so
+ * the first one is usually before the truck leaves.
+ */
+export function formatSinceDeparture(iso: string, departureIso: string): string {
+  const minutes = Math.round((Date.parse(iso) - Date.parse(departureIso)) / 60_000)
+  if (minutes === 0) return 'At departure'
+  const direction = minutes > 0 ? 'after' : 'before'
+  return `${formatDuration(Math.abs(minutes) * 60)} ${direction} departure`
+}
+
 const MAX_DECIMALS = 6
 
 /**

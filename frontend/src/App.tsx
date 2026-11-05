@@ -4,6 +4,9 @@ import { Suspense, lazy, useState } from 'react'
 import { AttributionFooter } from './components/AttributionFooter'
 import { DemoBanner } from './components/DemoBanner'
 import { Legend } from './components/Legend'
+import { ForecastSlider } from './features/heatmap/ForecastSlider'
+import { createHourStore } from './features/heatmap/hourStore'
+import { LayerToggles, type MapLayers } from './features/heatmap/LayerToggles'
 import { CheckpointDetail } from './features/route-comparison/CheckpointDetail'
 import { RecommendationBanner } from './features/route-comparison/RecommendationBanner'
 import { RouteCard } from './features/route-comparison/RouteCard'
@@ -42,6 +45,13 @@ export default function App() {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null)
   const [resultId, setResultId] = useState<string | null>(null) // a new value per analysis
+  // The slider's hour lives outside React state so that dragging it only repaints the map.
+  const [hourStore] = useState(createHourStore)
+  const [layers, setLayers] = useState<MapLayers>({
+    heatmap: true,
+    checkpoints: true,
+    otherRoutes: true,
+  })
 
   const comparison = useMutation({
     mutationFn: (trip: TripFormValues) => analyzeRoutes(trip),
@@ -51,6 +61,7 @@ export default function App() {
       setAnalysis(null)
       setSelectedRouteId(null)
       setSelectedCheckpointId(null)
+      hourStore.set(0)
     },
     onSuccess: (result) => {
       setAnalysis(result)
@@ -66,6 +77,7 @@ export default function App() {
   const selectedCheckpoint =
     selectedRoute?.checkpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId) ?? null
   const warnings = (analysis?.warnings ?? []).filter((warning) => warning.code !== 'DEMO_MODE')
+  const hasCorridorForecast = (analysis?.heatmap.cells.length ?? 0) > 0
 
   const fitKey = analysis
     ? `${analysis.provenance.routing.fetched_at}|${analysis.request.departure_time_utc}|${analysis.provenance.weather.fetched_at}|${routes.length}`
@@ -194,7 +206,8 @@ export default function App() {
           aria-label="Map"
           className="relative order-3 flex flex-col lg:order-none lg:min-h-0"
         >
-          <div className="relative h-[58vh] min-h-80 lg:h-full">
+          {/* On a phone the map is kept short enough to stay in view with the forecast slider. */}
+          <div className="relative h-[42vh] min-h-72 lg:h-full">
             <Suspense fallback={<div className="h-full w-full bg-slate-200" />}>
               <RouteMap
                 routes={routes}
@@ -203,6 +216,9 @@ export default function App() {
                 selectedCheckpointId={selectedCheckpointId}
                 fitKey={fitKey}
                 isDemo={isDemo}
+                heatmap={analysis?.heatmap ?? null}
+                hourStore={hourStore}
+                layers={layers}
                 onSelectRoute={selectRoute}
                 onSelectCheckpoint={selectCheckpoint}
               />
@@ -213,6 +229,29 @@ export default function App() {
               </p>
             )}
           </div>
+          {analysis && (
+            <section
+              aria-label="Corridor forecast"
+              className="flex flex-col gap-3 border-b border-slate-300 bg-white p-4 lg:absolute lg:bottom-8 lg:left-3 lg:z-20 lg:w-80 lg:rounded-lg lg:border lg:shadow-xl"
+            >
+              {hasCorridorForecast ? (
+                <ForecastSlider
+                  key={resultId}
+                  store={hourStore}
+                  hours={analysis.heatmap.hours}
+                  departure={analysis.request.departure_time_utc}
+                  timeZone={analysis.routes[0]?.checkpoints[0]?.timezone ?? null}
+                />
+              ) : (
+                <p className="text-sm text-slate-700">No corridor forecast for this trip.</p>
+              )}
+              <LayerToggles
+                layers={layers}
+                onChange={setLayers}
+                heatmapAvailable={hasCorridorForecast}
+              />
+            </section>
+          )}
           {selectedRoute && selectedCheckpoint && (
             <div
               ref={detailRef}

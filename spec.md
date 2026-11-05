@@ -644,8 +644,8 @@ Risks and mitigations:
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
 | 1 | Project foundation and risk engine | Merged (squash, `5265147`) | 2.0 h | 0.5 h |
 | 2 | Routing, weather, recommendation backend | Merged (squash, `14b4a05`) | 4.0 h | 0.7 h |
-| 3 | React dashboard and interactive map | Ready for Codex Review (round 3) | 3.5 h | 0.6 h |
-| 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
+| 3 | React dashboard and interactive map | Merged (squash, `c52e9c7`) | 3.5 h | 0.6 h |
+| 4 | Weather heatmap and forecast slider | Ready for Codex Review (round 2) | 2.5 h | 0.3 h |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
 | | Reserve for review fixes and verification | | 1.0 h | |
 | | **Total** | | **16.0 h** | |
@@ -776,7 +776,10 @@ demo mode is shown. Vitest component tests.
 Acceptance: full analysis through the UI against the local backend; route selection and checkpoint
 detail work; mobile layout verified with screenshots.
 
-**Status: Ready for Codex Review** (2026-11-05). Branch `feat/pr3-dashboard-map`.
+**Status: Merged** (2026-11-05, squash commit `c52e9c7`, after two review rounds). PR:
+https://github.com/Oliver-Leonor/spotter-weather-routing/pull/3 (branch `feat/pr3-dashboard-map`).
+The Codex bot had reviewed `0d84a64`; its last finding was fixed in `a069cf9`, which Oliver merged
+without a further bot review.
 
 Implementation summary:
 - Trip form (`features/trip-planner`): city and town search as an accessible combobox (debounced,
@@ -852,6 +855,59 @@ mobile), accessibility pass (labels, focus, keyboard slider).
 Acceptance: slider changes the visualization with no network calls (verified in Playwright by
 counting requests); smooth interaction; e2e suite green at both widths.
 
+**Status: Ready for Codex Review** (2026-11-05). Branch `feat/pr4-heatmap-slider`.
+
+Implementation summary:
+- Corridor heatmap (`features/heatmap/heatmapData.ts`, map layer in `RouteMap.tsx`): one GeoJSON
+  source of cell rectangles built once per analysis, each carrying its risk for all 49 hours
+  (`r_0` to `r_48`). The fill layer sits under the basemap labels. Calm cells are faint so the
+  weather stands out; hours without a forecast are grey, never a risk color.
+- Forecast slider (`ForecastSlider.tsx`): 0 to 48 hours, exact local time of the chosen hour with
+  the UTC value on hover, time before or after the real departure, `aria-valuetext` with both,
+  keyboard support.
+  The thumb and label follow at once; the map is updated at most once per animation frame.
+- No re-render, no rebuild, no request per move: the chosen hour lives in a small store outside
+  React (`hourStore.ts`). The map subscribes to it and swaps two paint expressions.
+- Truck marker (the optional item): the expected position on the selected route at the chosen
+  hour, interpolated from the checkpoint ETAs, so the corridor forecast can be read against where
+  the truck would be.
+- Layer switches for the weather corridor, checkpoints and other routes. A hidden route cannot be
+  selected by clicking where it was.
+- The panel states the difference: shading is the corridor forecast at the chosen time;
+  checkpoints keep showing the risk at their own arrival time. If the corridor forecast could not
+  be loaded, the slider is replaced by a note and the routes are unaffected.
+- Playwright e2e suite (`frontend/e2e`, `npm run e2e`): 11 specs at 1280 px and 375 px (22 runs),
+  hermetic. The API is mocked with recorded responses of the real backend, the map style is a
+  blank style and web fonts are blocked, so nothing leaves the machine.
+
+Test results (2026-11-05): frontend `vitest` 126 passed; Playwright 22 passed (run three times,
+stable); `tsc -b` (now also covering `e2e/` and the Playwright config), `oxlint` and
+`prettier --check` clean; `vite build` OK. Backend unchanged: `pytest` 382 passed.
+
+Acceptance evidence:
+- No network calls per slider move: the e2e test records every request the page makes while the
+  slider goes to hour 6 and hour 48 and asserts the list is empty. A manual sweep through all 49
+  positions against the real backend took 0.77 s with 0 requests.
+- The visualization changes: pictures of the map canvas alone (markers, panels and controls hidden)
+  differ between the departure hour and the storm hour, and are identical again at +48 h when the
+  demo weather repeats. Switching the corridor off and on gives the same picture back.
+- Both widths: all specs pass at 1280 px and 375 px, with no horizontal overflow.
+- Screenshots: `docs/screenshots/pr4-*.png`.
+
+Codex review round 1 (2026-11-05, at `35f50ff`): one P2 finding, accepted. The forecast hours start
+at the top of the departure hour, but the slider called hour 0 "At departure" and counted the
+other hours from it. For a 3:45 PM departure, hour 0 is 45 minutes before departure and hour 1 only
+15 minutes after it. Fix: the slider now receives the real departure time and measures every hour
+from it ("45 min before departure", "15 min after departure", "1 h 15 min after departure"), in
+the visible label and in the screen-reader text alike. The tick marks under the slider are clock
+times ("Fri 8 AM") instead of "Departure / +24 h / +48 h". The 49 forecast timestamps and the map
+painting are unchanged. Frontend suite: 136 passed (10 new tests, including departures at 45 past
+the hour through the slider and through the whole App); Playwright 22 passed. Rechecked in Chromium
+against the real backend with a departure at 8:45 AM.
+
+Known issues: none open. The truck marker moves in straight lines between checkpoints, which is an
+approximation of the road (noted in the code).
+
 ### PR #5: Production deployment and submission preparation
 
 Branch `feat/pr5-deploy-docs`.
@@ -888,7 +944,7 @@ No credentials are required for the default plan.
 
 ## 16. Progress checklist (final acceptance)
 
-- [ ] React frontend implemented
+- [x] React frontend implemented (PR #3 dashboard and map, PR #4 heatmap and slider)
 - [x] Django backend implemented (PR #1 scaffold and risk engine; PR #2 routing, weather,
       recommendation and API)
 - [x] Origin and destination work (PR #3)
@@ -905,10 +961,10 @@ No credentials are required for the default plan.
 - [x] Route recommendations follow the required priority order (PR #2)
 - [x] All routes are displayed on the map (PR #3)
 - [x] Checkpoint details work (PR #3)
-- [ ] Weather heatmap works
-- [ ] 0 to 48 hour forecast slider works
+- [x] Weather heatmap works (PR #4)
+- [x] 0 to 48 hour forecast slider works (PR #4: no request per move, verified in Playwright)
 - [x] Application is responsive (PR #3: verified at 375 px and 1440 px)
-- [ ] Automated tests pass
+- [x] Automated tests pass (backend 382, frontend 126, Playwright 22 at two widths)
 - [x] Live provider integration verified (PR #2 live smoke test, 2026-11-05)
 - [ ] Production frontend verified
 - [ ] Production backend verified
@@ -951,6 +1007,11 @@ No credentials are required for the default plan.
 | 2026-11-05 | The analysis runs on "Compare routes", not on every field change | Each analysis calls the public routing and weather services, so runs are explicit. |
 | 2026-11-05 | The risk ribbon is one tab stop with arrow-key movement (roving focus) | PR #3 review: checkpoints must be reachable without a pointer; a route can have 60 checkpoints, so one tab stop per route keeps the page navigable. |
 | 2026-11-05 | Results are cleared when a new comparison starts, and each result states its trip | PR #3 review: a recommendation must never be shown beside a form or a failed request that describes a different trip. |
+| 2026-11-05 | The slider's hour lives in a small store outside React; the map subscribes to it | A slider move swaps paint expressions only: no React render of the page, no source rebuild, no request. |
+| 2026-11-05 | Slider offsets are measured from the real departure time, and the ticks are clock times | PR #4 review: the forecast hours start at the top of the departure hour, so "At departure" was wrong for any departure with minutes. |
+| 2026-11-05 | Calm heatmap cells are drawn faint (opacity 0.14 against 0.5) | A corridor of solid green hid the map and the routes; the weather that matters now stands out. |
+| 2026-11-05 | Truck position marker included | It ties the corridor forecast at the chosen hour to where the truck would be at that hour. |
+| 2026-11-05 | e2e tests are hermetic: recorded real backend responses, blank map style, fonts blocked | Deterministic and polite to the public providers; live behavior is covered by the backend live smoke test and the manual browser checks. |
 | 2026-11-05 | MapLibre is loaded lazily and its worker URL is set explicitly | Keeps the form usable before 1 MB of map code arrives; MapLibre 6 ships its worker as a separate module that the bundler must emit. |
 
 ---
@@ -969,5 +1030,7 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #2 merge + PR #3 dashboard and map | 10:52 | 11:12 | 0.4 h | squash merge, TDD frontend (84 new tests), MapLibre map, browser verification at desktop and 375 px, docs, PR |
 | 2026-11-05 | PR #3 Codex round 1 fixes | 11:24 | 11:26 | 0.1 h | keyboard access to checkpoints (roving focus), stale results cleared, trip summary, 8 tests |
 | 2026-11-05 | PR #3 Codex round 2 fix | 11:43 | 11:46 | 0.1 h | validation messages without a form field shown in the alert, 3 tests, browser check with demo mode disabled |
+| 2026-11-05 | PR #3 merge + PR #4 heatmap and slider | 11:49 | 11:59 | 0.2 h | squash merge, corridor heatmap layer, forecast slider with external store, truck marker, layer switches, Playwright suite (22 runs), browser checks, docs, PR |
+| 2026-11-05 | PR #4 Codex round 1 fix | 12:13 | 12:14 | 0.1 h | slider offsets measured from the real departure, clock-time ticks, 10 tests, browser check at 8:45 AM |
 
-Cumulative active time: 2.4 h of 16.0 h (13.6 h remain; PR #4 and #5 budgets unchanged).
+Cumulative active time: 2.7 h of 16.0 h (13.3 h remain; PR #5 budget unchanged).
