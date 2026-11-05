@@ -304,7 +304,7 @@ Response `200`:
             "wind_mph": 12.3, "wind_gust_mph": 20.1, "rain_in_per_hr": 0.0, "snow_in_per_hr": 0.0,
             "temperature_f": 41.2, "weather_code": 3
           },
-          "risk": {"level": "low", "value": 0, "drivers": [], "wind_level": "low", "rain_level": "low", "snow_level": "low", "load_rule_applied": null}
+          "risk": {"level": "low", "value": 0, "drivers": [], "wind_level": "low", "rain_level": "low", "snow_level": "low", "load_rule_applied": null, "missing": []}
         }
       ],
       "summary": {
@@ -385,8 +385,20 @@ Final checkpoint level = max severity over (wind level after load rules, rain le
 Severity order: Low < Moderate < High < Severe < No Travel. The response lists the `drivers`
 (for example `["wind", "load_rule_2"]`) that produced the final level.
 
-Missing data: if any of wind, rain or snow is missing for the forecast hour, or the ETA falls outside
-the fetched forecast coverage, the checkpoint risk is `unknown` (`null`). Unknown never becomes Low.
+Missing data precedence (clarified after Codex review of PR #1):
+
+1. If any *available* measurement conclusively establishes No Travel (wind `>= 55`, the 45 to 55 mph
+   rule with load `> 30,000`, rain `> 1.00`, snow `> 3.0`), the checkpoint is **No Travel** and its
+   `drivers` are kept. Missing data cannot make a prohibited condition less dangerous. The gaps are
+   reported separately in `risk.missing` (subset of `wind`, `rain`, `snow`).
+2. Otherwise, if any of wind, rain or snow is missing for the forecast hour, or the ETA falls outside
+   the fetched forecast coverage, the checkpoint risk is `unknown` (`null`). A known Severe (or
+   lower) level is not conclusive because the missing measurement could raise it. Unknown never
+   becomes Low.
+3. Otherwise the level is the maximum of the three conditions.
+
+Route aggregation (PR #2) counts case 1 as No Travel miles (route blocked) and case 2 as unknown
+miles (route unverified).
 
 Floating point: values are compared as Python floats after rounding provider values to 3 decimals;
 tests cover 24.99, 25, 34.99, 35, 44.99, 45, 54.99, 55 mph; 30000 vs 30001 lb; 40000 vs 40001 lb;
@@ -587,12 +599,12 @@ Risks and mitigations:
 | PR | Title | Status | Budget | Actual |
 |---|---|---|---:|---:|
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
-| 1 | Project foundation and risk engine | In Progress | 2.0 h | |
+| 1 | Project foundation and risk engine | Ready for Codex Review (round 3) | 2.0 h | 0.5 h |
 | 2 | Routing, weather, recommendation backend | Not Started | 4.0 h | |
 | 3 | React dashboard and interactive map | Not Started | 3.5 h | |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
-| | Reserve for review fixes and verification | | 0.5 h | |
+| | Reserve for review fixes and verification | | 1.0 h | |
 | | **Total** | | **16.0 h** | |
 
 ### PR #0 (bootstrap, pushed directly to `main` with Oliver's go-ahead)
@@ -609,6 +621,45 @@ Tailwind and routing shell, shared API types (`frontend/src/types/api.ts`), `ris
 of the backend health endpoint on the personal account (hosting smoke test requested by Oliver).
 Acceptance: `python manage.py runserver` serves `/api/health/`; `npm run dev` renders the shell;
 `pytest` passes the full boundary table (section 7); logic is pure and deterministic.
+
+**Status: Ready for Codex Review** (2026-11-05). PR: https://github.com/Oliver-Leonor/spotter-weather-routing/pull/1
+(branch `feat/pr1-foundation-risk-engine`).
+
+Implementation summary:
+- Backend: Django 6.1.3 + DRF 3.18.3, settings split (`base`/`dev`/`test`/`prod`), no database,
+  JSON-only renderer, uniform error envelope (`analysis/exceptions.py`, also defines `UpstreamError`
+  for PR #2), CORS, anon throttle, `GET /api/health/`.
+- Risk engine: `risk/levels.py` (`RiskLevel` IntEnum 0..4), `risk/classification.py` (pure
+  `classify_wind/rain/snow`, `apply_load_rules`, `classify_checkpoint` returning a frozen
+  `CheckpointRisk` with per-condition levels, drivers and the applied load rule; missing/NaN/negative
+  inputs yield `unknown`, never Low).
+- Frontend: Vite 8 + React 19 + TypeScript strict + Tailwind 4 + TanStack Query + MapLibre GL +
+  lucide (installed, map wiring in PR #3), app shell with empty state, `types/api.ts` contract,
+  `lib/risk.ts` colors/labels/values, Vitest + RTL + jsdom, Prettier, oxlint.
+- Hosting smoke test (requested by Oliver): backend deployed to the personal Vercel Hobby account,
+  project `stormroute-api`, public domain https://stormroute-api-navy.vercel.app/api/health/
+  verified live with production settings (`DEBUG=False`, HTTPS redirect 308, HSTS, CORS limited to
+  the configured origin, custom 405/404 envelopes). Findings recorded in the decision log.
+
+Test results (2026-11-05): backend `pytest` 69 passed (65 risk-table/boundary/load/missing-data
+cases + 4 health/error-envelope API tests), `ruff check` and `ruff format --check` clean; frontend `vitest` 3 passed,
+`tsc -b` clean, `oxlint` clean, `prettier --check` clean, `vite build` OK.
+
+Codex review round 1 (2026-11-05): finding accepted. Unresolved paths were answered by Django's
+HTML 404 (URL resolution fails before any DRF view, so the DRF exception handler never runs).
+Fix: `analysis/errors.py` JSON `handler404`/`handler500` registered in `config/urls.py`;
+`test_unknown_api_route_is_404_json` now asserts content type and body, plus tests for non-API
+paths and the 500 handler. Backend suite: 62 passed. Production backend redeployed and re-verified.
+
+Codex review round 2 (2026-11-05): P2 finding accepted. A conclusive No Travel measurement (wind
+>= 55, load rule 2, rain > 1.00, snow > 3.0) was downgraded to `unknown` when another measurement
+was missing. Fix in `risk/classification.py`: conclusive No Travel takes precedence over gaps; a new
+`missing` list (and `is_complete`) reports the gaps separately; non-conclusive known levels still
+yield `unknown`. Spec section 7 documents the precedence. Backend suite: 69 passed (8 new tests).
+Frontend `CheckpointRisk` type gained `missing`.
+
+Known issues: none open. Frontend map/heatmap and all provider code are intentionally absent (PR #2
+to #4).
 
 ### PR #2: Routing, weather and recommendation backend
 
@@ -678,7 +729,7 @@ No credentials are required for the default plan.
 ## 16. Progress checklist (final acceptance)
 
 - [ ] React frontend implemented
-- [ ] Django backend implemented
+- [ ] Django backend implemented (scaffold + risk engine + health in PR #1)
 - [ ] Origin and destination work
 - [ ] Departure date and time work
 - [ ] Load weight works
@@ -687,8 +738,8 @@ No credentials are required for the default plan.
 - [ ] 10/25/50-mile checkpoint sampling works
 - [ ] Checkpoint ETAs are calculated
 - [ ] Weather is retrieved for checkpoint arrival times
-- [ ] All Spotter risk rules are correctly implemented
-- [ ] Load-dependent rules work
+- [x] All Spotter risk rules are correctly implemented (PR #1, 58 boundary tests; route-level wiring in PR #2)
+- [x] Load-dependent rules work (PR #1 classifier; end-to-end in PR #2)
 - [ ] No Travel rules work
 - [ ] Route recommendations follow the required priority order
 - [ ] All routes are displayed on the map
@@ -717,6 +768,8 @@ No credentials are required for the default plan.
 | 2026-11-05 | MapLibre GL + OpenFreeMap instead of Mapbox GL | No token in the browser, no billing, unlimited tile use per OpenFreeMap. |
 | 2026-11-05 | Open-Meteo with `wind_speed_unit=mph`, `precipitation_unit=inch`, unit validation + fallback conversion | Verified `hourly_units` output; belt-and-braces against unit drift. |
 | 2026-11-05 | Oliver approved: personal Vercel for both apps, Valhalla default, bootstrap push to main, PR #1 start; deadline still unconfirmed | Review gate decisions D1 to D4. |
+| 2026-11-05 | Vercel Django preset: framework must be set to `django` on the project, dependencies must be listed in `pyproject.toml` `[project].dependencies` (a lone `requirements.txt` is ignored), Python from `.python-version` (3.14 works) | Found during the PR #1 hosting smoke test; first deploy was treated as static files and the `.vercel.app` name `stormroute-api` was already taken by someone else (our domain is `stormroute-api-navy.vercel.app`). |
+| 2026-11-05 | Early production deployment of the health-only backend | First CLI deploy of a new project went to production automatically; it carries no provider calls, so the FOSSGIS notification condition (D3) is not yet triggered. |
 | 2026-11-05 | Nearest-hour forecast selection | Simple, documented, testable; interpolation adds little at hourly resolution. |
 | 2026-11-05 | Nearest-checkpoint (midpoint split) mileage attribution | Unbiased, sums exactly to total, handles the final partial segment. |
 | 2026-11-05 | Heatmap as GeoJSON cell grid with per-hour properties and paint-expression switching | Zero network and zero data rebuild per slider move. |
@@ -727,6 +780,9 @@ No credentials are required for the default plan.
 
 | Date (Asia/Manila) | Phase | Start | End | Active | Notes |
 |---|---|---|---|---:|---|
-| 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:15 | 0.4 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md |
+| 2026-11-05 | PR #0 preflight + spec | 08:50 | 09:17 | 0.5 h | env checks, gh identity, Valhalla/OSRM/Open-Meteo probes, FOSSGIS terms, Vercel limits, spec.md, decisions, bootstrap push |
+| 2026-11-05 | PR #1 foundation + risk engine | 09:17 | 09:35 | 0.3 h | Django/DRF scaffold, TDD risk classifier (60 tests), Vite/React scaffold (3 tests), Vercel smoke deploy + debugging, docs, PR |
+| 2026-11-05 | PR #1 Codex round 1 fix | 09:31 | 09:38 | 0.1 h | JSON handler404/handler500 + tests, redeploy |
+| 2026-11-05 | PR #1 Codex round 2 fix | 09:39 | 09:47 | 0.1 h | conclusive No Travel precedence over missing data, `missing` field, 8 tests, spec section 7 |
 
-Cumulative active time: see table. Budget: 16.0 h.
+Cumulative active time: 1.0 h of 16.0 h (reforecast after PR #1 round 2: 15.0 h remain; PR #2 to #5 budgets unchanged, reserve raised to 1.0 h).

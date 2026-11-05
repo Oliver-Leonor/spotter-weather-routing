@@ -1,0 +1,38 @@
+[project]
+name = "stormroute-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "Django==6.1.3",
+  "djangorestframework==3.18.3",
+  "django-cors-headers==4.9.0",
+  "httpx==0.28.1",
+  "python-dotenv==1.2.4",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.2.0",
+  "pytest-django==4.14.0",
+  "respx==0.23.1",
+  "ruff==0.17.3",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+markers = [
+  "live: hits real external providers (deselected by default; run with -m live)",
+]
+addopts = "-m 'not live' -q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.vercel]
+entrypoint = "config.wsgi:application"
