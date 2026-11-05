@@ -5,7 +5,12 @@ import pytest
 def _isolated_provider_caches():
     """Provider responses are cached in-process; no test may see another test's responses."""
     from routing.providers.valhalla import ROUTE_CACHE
+    from weather.geocoding import GEOCODE_CACHE
+    from weather.open_meteo import FORECAST_CACHE
 
-    ROUTE_CACHE.clear()
+    caches = (ROUTE_CACHE, FORECAST_CACHE, GEOCODE_CACHE)
+    for cache in caches:
+        cache.clear()
     yield
-    ROUTE_CACHE.clear()
+    for cache in caches:
+        cache.clear()
