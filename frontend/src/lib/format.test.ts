@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   datetimeLocalToIso,
   formatClock,
+  formatDayHour,
+  formatSinceDeparture,
   formatDuration,
   formatLocalTime,
   formatMeasurement,
@@ -46,6 +48,26 @@ describe('local time at a checkpoint', () => {
   it('falls back to UTC when the zone is missing or unknown', () => {
     expect(formatClock('2026-11-06T15:00:00Z', null)).toBe('3:00 PM UTC')
     expect(formatClock('2026-11-06T15:00:00Z', 'Not/AZone')).toBe('3:00 PM UTC')
+  })
+})
+
+describe('time relative to departure', () => {
+  it('names the difference between a moment and the departure', () => {
+    const departure = '2026-11-06T15:45:00Z'
+    expect(formatSinceDeparture('2026-11-06T15:45:00Z', departure)).toBe('At departure')
+    expect(formatSinceDeparture('2026-11-06T15:00:00Z', departure)).toBe('45 min before departure')
+    expect(formatSinceDeparture('2026-11-06T16:00:00Z', departure)).toBe('15 min after departure')
+    expect(formatSinceDeparture('2026-11-06T17:00:00Z', departure)).toBe(
+      '1 h 15 min after departure',
+    )
+    expect(formatSinceDeparture('2026-11-06T17:45:00Z', departure)).toBe('2 h after departure')
+    expect(formatSinceDeparture('2026-11-06T13:45:00Z', departure)).toBe('2 h before departure')
+  })
+
+  it('formats a slider tick as a weekday and hour in the trip zone', () => {
+    expect(formatDayHour('2026-11-06T15:00:00Z', 'America/Denver')).toBe('Fri 8 AM')
+    expect(formatDayHour('2026-11-08T15:00:00Z', 'America/Denver')).toBe('Sun 8 AM')
+    expect(formatDayHour('2026-11-06T15:00:00Z', null)).toBe('Fri 3 PM')
   })
 })
 

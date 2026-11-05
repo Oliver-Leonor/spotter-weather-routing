@@ -1,17 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { formatLocalTime } from '../../lib/format'
+import { formatDayHour, formatLocalTime, formatSinceDeparture } from '../../lib/format'
 import type { HourStore } from './hourStore'
 
 interface Props {
   store: HourStore
-  /** One ISO timestamp per forecast hour, starting at the departure hour. */
+  /** One ISO timestamp per forecast hour, starting at the top of the departure hour. */
   hours: string[]
+  /** The actual departure time. It is usually not on the hour, so offsets are measured from it. */
+  departure: string
   /** Zone used to show the time, normally the trip origin's. */
   timeZone: string | null
-}
-
-function offsetLabel(hour: number): string {
-  return hour === 0 ? 'At departure' : `${hour} h after departure`
 }
 
 /**
@@ -19,7 +17,7 @@ function offsetLabel(hour: number): string {
  * the map is told at most once per animation frame, through the store, so dragging stays smooth
  * and nothing else on the page re-renders.
  */
-export function ForecastSlider({ store, hours, timeZone }: Props) {
+export function ForecastSlider({ store, hours, departure, timeZone }: Props) {
   const id = useId()
   const [hour, setHour] = useState(() => store.get())
   const pending = useRef<number | null>(null)
@@ -49,6 +47,7 @@ export function ForecastSlider({ store, hours, timeZone }: Props) {
   const last = hours.length - 1
   const iso = hours[Math.min(hour, last)]
   const localTime = formatLocalTime(iso, timeZone)
+  const sinceDeparture = formatSinceDeparture(iso, departure)
 
   return (
     <div>
@@ -56,7 +55,7 @@ export function ForecastSlider({ store, hours, timeZone }: Props) {
         <label htmlFor={id} className="text-sm font-medium text-ink">
           Corridor forecast time
         </label>
-        <span className="text-xs text-slate-500">{offsetLabel(hour)}</span>
+        <span className="text-xs text-slate-500">{sinceDeparture}</span>
       </div>
       <p className="font-display text-xl leading-tight font-semibold text-ink">
         <time dateTime={iso} title={`${iso} (UTC)`}>
@@ -71,13 +70,19 @@ export function ForecastSlider({ store, hours, timeZone }: Props) {
         step={1}
         value={hour}
         onChange={(event) => change(Number(event.target.value))}
-        aria-valuetext={`${localTime}, ${offsetLabel(hour).replace('At departure', 'at departure')}`}
+        aria-valuetext={`${localTime}, ${sinceDeparture.replace('At departure', 'at departure')}`}
         className="forecast-slider mt-2 w-full"
       />
-      <div className="flex justify-between text-xs text-slate-500" aria-hidden="true">
-        <span>Departure</span>
-        <span>+24 h</span>
-        <span>+48 h</span>
+      {/* Clock times, not offsets: the left end is the top of the departure hour, which is
+          usually a little before the departure itself. */}
+      <div
+        data-testid="forecast-slider-ticks"
+        className="flex justify-between text-xs text-slate-500"
+        aria-hidden="true"
+      >
+        <span>{formatDayHour(hours[0], timeZone)}</span>
+        <span>{formatDayHour(hours[Math.floor(last / 2)], timeZone)}</span>
+        <span>{formatDayHour(hours[last], timeZone)}</span>
       </div>
       <p className="mt-2 text-xs leading-relaxed text-slate-500">
         Shading shows the forecast risk across the corridor at this time, for this load. Checkpoints

@@ -7,8 +7,10 @@ const HOURS = Array.from({ length: 49 }, (_, i) =>
   new Date(Date.parse('2026-11-06T15:00:00Z') + i * 3_600_000).toISOString().replace('.000Z', 'Z'),
 )
 
-function renderSlider(store = createHourStore()) {
-  render(<ForecastSlider store={store} hours={HOURS} timeZone="America/Denver" />)
+function renderSlider(store = createHourStore(), departure = '2026-11-06T15:00:00Z') {
+  render(
+    <ForecastSlider store={store} hours={HOURS} departure={departure} timeZone="America/Denver" />,
+  )
   return { store, slider: screen.getByRole('slider', { name: 'Corridor forecast time' }) }
 }
 
@@ -74,5 +76,66 @@ describe('ForecastSlider', () => {
     expect(
       screen.getByText(/Checkpoints keep showing the risk at their own arrival time/),
     ).toBeInTheDocument()
+  })
+})
+
+// Codex finding (PR #4): the forecast hours start at the top of the departure hour, so for a
+// 8:45 AM departure hour 0 is 45 minutes BEFORE departure, not "at departure".
+describe('ForecastSlider when the departure is not on the hour', () => {
+  const DEPARTS_0845 = '2026-11-06T15:45:00Z' // 8:45 AM MST; the forecast hours still start at 8:00
+
+  function at(hour: number) {
+    const { slider } = renderSlider(createHourStore(), DEPARTS_0845)
+    fireEvent.change(slider, { target: { value: String(hour) } })
+    return slider
+  }
+
+  it('says the first forecast hour is before departure', () => {
+    const slider = at(0)
+    expect(screen.getByText('Fri, Nov 6, 8:00 AM MST')).toBeInTheDocument()
+    expect(screen.getByText('45 min before departure')).toBeInTheDocument()
+    expect(screen.queryByText('At departure')).not.toBeInTheDocument()
+    expect(slider).toHaveAttribute(
+      'aria-valuetext',
+      'Fri, Nov 6, 8:00 AM MST, 45 min before departure',
+    )
+  })
+
+  it('measures later hours from the real departure time', () => {
+    const slider = at(1)
+    expect(screen.getByText('15 min after departure')).toBeInTheDocument()
+    expect(slider).toHaveAttribute(
+      'aria-valuetext',
+      'Fri, Nov 6, 9:00 AM MST, 15 min after departure',
+    )
+  })
+
+  it.each([
+    [2, '1 h 15 min after departure'],
+    [25, '24 h 15 min after departure'],
+    [48, '47 h 15 min after departure'],
+  ])('labels hour %i as "%s"', (hour, label) => {
+    at(hour)
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it('marks the ends of the slider with clock times, not with offsets from departure', () => {
+    renderSlider(createHourStore(), DEPARTS_0845)
+    const ticks = screen.getByTestId('forecast-slider-ticks')
+    expect(ticks).toHaveTextContent('Fri 8 AM')
+    expect(ticks).toHaveTextContent('Sat 8 AM')
+    expect(ticks).toHaveTextContent('Sun 8 AM')
+    expect(ticks).not.toHaveTextContent('Departure')
+    expect(ticks).not.toHaveTextContent('+24 h')
+  })
+})
+
+describe('ForecastSlider when the departure is exactly on the hour', () => {
+  it('still says "At departure" for the first hour and whole hours after it', () => {
+    const { slider } = renderSlider()
+    expect(screen.getByText('At departure')).toBeInTheDocument()
+    expect(slider).toHaveAttribute('aria-valuetext', 'Fri, Nov 6, 8:00 AM MST, at departure')
+    fireEvent.change(slider, { target: { value: '1' } })
+    expect(screen.getByText('1 h after departure')).toBeInTheDocument()
   })
 })

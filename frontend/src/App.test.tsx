@@ -510,3 +510,24 @@ describe('corridor forecast', () => {
     expect(screen.getAllByRole('article')).toHaveLength(3)
   })
 })
+
+describe('corridor forecast for a departure that is not on the hour', () => {
+  it('measures the forecast hours from the real departure time', async () => {
+    const analysis = demoAnalysis()
+    analysis.request = {
+      ...analysis.request,
+      departure_time: '2026-11-06T08:45:00-07:00',
+      departure_time_utc: '2026-11-06T15:45:00Z',
+    }
+    await runDemo(analysis)
+
+    const corridor = screen.getByRole('region', { name: 'Corridor forecast' })
+    expect(within(corridor).getByText('Fri, Nov 6, 8:00 AM MST')).toBeInTheDocument()
+    expect(within(corridor).getByText('45 min before departure')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Corridor forecast time' }), {
+      target: { value: '1' },
+    })
+    expect(within(corridor).getByText('15 min after departure')).toBeInTheDocument()
+  })
+})

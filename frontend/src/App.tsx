@@ -239,6 +239,7 @@ export default function App() {
                   key={resultId}
                   store={hourStore}
                   hours={analysis.heatmap.hours}
+                  departure={analysis.request.departure_time_utc}
                   timeZone={analysis.routes[0]?.checkpoints[0]?.timezone ?? null}
                 />
               ) : (
