@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from common.errors import UpstreamError
-from risk.classification import classify_rain
+from risk.classification import classify_rain, classify_snow, classify_wind
 from risk.levels import RiskLevel
 from tests.helpers import open_meteo_location
 from weather.open_meteo import OpenMeteoProvider
@@ -235,3 +235,83 @@ def test_a_different_window_is_not_served_from_the_cache(respx_mock):
     fetch(points=[DENVER])
     fetch(points=[DENVER], start=START + timedelta(days=3), end=END + timedelta(days=3))
     assert route.call_count == 2
+
+
+# ------------------------------------------ precision at the thresholds ------
+# Review finding (PR #2): rounding to three decimals before classification hid real threshold
+# crossings when values arrive in metric units. 25.41 mm is 1.000394 in/h, which is No Travel.
+def first_hour():
+    return fetch(points=[DENVER])[(39.739, -104.99)]
+
+
+@pytest.mark.parametrize(
+    "rain_mm, showers_mm, level",
+    [
+        (25.4, 0.0, RiskLevel.SEVERE),  # exactly 1.00 in/h: "0.50 through 1.00" is Severe
+        (25.41, 0.0, RiskLevel.NO_TRAVEL),  # 1.000394 in/h: above 1.00
+        (12.7, 12.7, RiskLevel.SEVERE),  # the sum is exactly 1.00 in/h
+        (12.7, 12.71, RiskLevel.NO_TRAVEL),  # the sum is 1.000394 in/h
+    ],
+)
+def test_metric_rain_just_above_one_inch_per_hour_is_no_travel(
+    respx_mock, rain_mm, showers_mm, level
+):
+    respx_mock.get(FORECAST_URL).mock(
+        side_effect=locations(
+            rain=rain_mm, showers=showers_mm, units={"rain": "mm", "showers": "mm"}
+        )
+    )
+    assert classify_rain(first_hour().rain_in_per_hr[0]) is level
+
+
+def test_metric_rain_of_exactly_one_inch_normalizes_to_one(respx_mock):
+    assert 25.4 * (1 / 25.4) != 1.0  # the raw conversion is 0.9999999999999999
+    respx_mock.get(FORECAST_URL).mock(
+        side_effect=locations(rain=25.4, showers=0.0, units={"rain": "mm", "showers": "mm"})
+    )
+    assert first_hour().rain_in_per_hr[0] == 1.0
+
+
+@pytest.mark.parametrize(
+    "snow_cm, level",
+    [
+        (7.62, RiskLevel.SEVERE),  # exactly 3.0 in/h: "2.0 through 3.0" is Severe
+        (7.63, RiskLevel.NO_TRAVEL),  # 3.003937 in/h: above 3.0
+    ],
+)
+def test_metric_snow_just_above_three_inches_per_hour_is_no_travel(respx_mock, snow_cm, level):
+    respx_mock.get(FORECAST_URL).mock(
+        side_effect=locations(snowfall=snow_cm, units={"snowfall": "cm"})
+    )
+    assert classify_snow(first_hour().snow_in_per_hr[0]) is level
+
+
+@pytest.mark.parametrize(
+    "wind_kmh, level",
+    [
+        (88.5, RiskLevel.SEVERE),  # 54.991 mph
+        (88.5139, RiskLevel.SEVERE),  # 54.99997 mph: still below 55, must not round up
+        (88.6, RiskLevel.NO_TRAVEL),  # 55.054 mph
+    ],
+)
+def test_metric_wind_is_not_rounded_across_the_55_mph_threshold(respx_mock, wind_kmh, level):
+    respx_mock.get(FORECAST_URL).mock(
+        side_effect=locations(wind=wind_kmh, units={"wind_speed_10m": "km/h"})
+    )
+    assert classify_wind(first_hour().wind_mph[0]) is level
+
+
+@pytest.mark.parametrize(
+    "rain_in, snow_in, rain_level, snow_level",
+    [
+        (1.0, 3.0, RiskLevel.SEVERE, RiskLevel.SEVERE),
+        (1.0004, 3.0004, RiskLevel.NO_TRAVEL, RiskLevel.NO_TRAVEL),
+    ],
+)
+def test_values_with_more_than_three_decimals_keep_their_precision(
+    respx_mock, rain_in, snow_in, rain_level, snow_level
+):
+    respx_mock.get(FORECAST_URL).mock(side_effect=locations(rain=rain_in, snowfall=snow_in))
+    series = first_hour()
+    assert classify_rain(series.rain_in_per_hr[0]) is rain_level
+    assert classify_snow(series.snow_in_per_hr[0]) is snow_level

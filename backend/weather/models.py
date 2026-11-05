@@ -35,7 +35,8 @@ class HourlySeries:
     """Columns are aligned with `times` (UTC epoch seconds, ascending, one per hour).
 
     Wind is the sustained 10 m speed in mph. Rain is rain plus showers and snow is snowfall, both
-    as inches in the hour. Risk measurements are rounded to three decimals.
+    as inches in the hour. Values keep the provider's precision (normalized to six decimals), so
+    they can be compared with the risk thresholds exactly.
     """
 
     times: tuple[int, ...]

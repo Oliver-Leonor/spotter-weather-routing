@@ -405,3 +405,14 @@ def test_geocode_provider_failure_is_a_502(client, respx_mock):
     response = client.get(GEOCODE_URL, {"q": "Denver"})
     assert response.status_code == 502
     assert error(response)["code"] == "GEOCODING_UNAVAILABLE"
+
+
+def test_metric_rain_just_above_the_no_travel_threshold_blocks_every_route(client, respx_mock):
+    mock_routing(respx_mock)
+    mock_forecast(respx_mock, rain=25.41, units={"rain": "mm", "showers": "mm"})  # 1.000394 in/h
+
+    body = client.post(ANALYZE_URL, trip(), format="json").json()
+
+    assert {r["status"] for r in body["routes"]} == {"blocked"}
+    assert body["recommendation"]["route_id"] is None
+    assert "(rain 1.0004 in/h)" in body["recommendation"]["explanation"]

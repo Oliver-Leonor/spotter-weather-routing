@@ -17,7 +17,15 @@ from zoneinfo import ZoneInfo
 from common.errors import NoRouteError, TripTooLargeError, UpstreamError
 from common.timefmt import iso_utc
 from risk.aggregation import STATUS_BLOCKED, STATUS_OK, RouteSummary, summarize
-from risk.classification import LOAD_RULE_2_LB, CheckpointRisk, classify_checkpoint
+from risk.classification import (
+    LOAD_RULE_2_LB,
+    CheckpointRisk,
+    classify_checkpoint,
+    classify_rain,
+    classify_snow,
+    classify_wind,
+)
+from risk.formatting import format_measurement
 from risk.levels import RiskLevel
 from risk.recommendation import RouteCandidate, recommend
 from routing.eta import elapsed_at, elapsed_profile
@@ -36,8 +44,9 @@ from .heatmap import Grid, build_grid, build_heatmap
 MODE_LIVE = "live"
 MODE_FIXTURE = "fixture"
 ROUTE_LIMIT = 3
-# Checkpoint forecasts per analysis. With the heatmap grid (up to 144 cells) this keeps a single
-# analysis under the weather provider's 600 calls per minute, counting each place as one call.
+# Checkpoint forecasts per analysis: a performance and fair-use safeguard. It bounds the response
+# size and analysis time, and keeps one analysis (with up to 144 heatmap cells) a modest load on
+# the free weather service.
 MAX_CHECKPOINT_FORECASTS = 450
 DISPLAY_TOLERANCE_MILES = 0.02  # about 30 metres: invisible on the map, far fewer points to send
 
@@ -342,13 +351,15 @@ def _causes(risk: CheckpointRisk, observation: Observation) -> str:
     if "wind" in risk.drivers:
         over_load = "load_rule_2" in risk.drivers
         causes.append(
-            f"wind {observation.wind_mph:.1f} mph"
+            f"wind {format_measurement(observation.wind_mph, 1, classify_wind)} mph"
             + (f" with a load over {LOAD_RULE_2_LB:,} lb" if over_load else "")
         )
     if "rain" in risk.drivers:
-        causes.append(f"rain {observation.rain_in_per_hr:.2f} in/h")
+        rain = format_measurement(observation.rain_in_per_hr, 2, classify_rain)
+        causes.append(f"rain {rain} in/h")
     if "snow" in risk.drivers:
-        causes.append(f"snow {observation.snow_in_per_hr:.2f} in/h")
+        snow = format_measurement(observation.snow_in_per_hr, 2, classify_snow)
+        causes.append(f"snow {snow} in/h")
     return ", ".join(causes)
 
 

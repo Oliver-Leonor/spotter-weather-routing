@@ -427,8 +427,14 @@ Missing data precedence (clarified after Codex review of PR #1):
 Route aggregation (PR #2) counts case 1 as No Travel miles (route blocked) and case 2 as unknown
 miles (route unverified).
 
-Floating point: values are compared as Python floats after rounding provider values to 3 decimals;
-tests cover 24.99, 25, 34.99, 35, 44.99, 45, 54.99, 55 mph; 30000 vs 30001 lb; 40000 vs 40001 lb;
+Precision (corrected after the PR #2 review): measurements are classified at the provider's
+precision. They are normalized to six decimals only, which is far finer than the provider's
+resolution (0.01 mm of rain is 0.0004 in) and removes binary floating-point noise (0.01 + 0.09 must
+be 0.10, and 25.4 mm must be exactly 1.00 in), so a real threshold crossing is never rounded away:
+25.41 mm of rain in the hour is 1.000394 in/h and is No Travel. Rain and showers are added before
+any normalization. Rounding for display is separate, and a displayed measurement keeps enough
+decimals to agree with its risk band ("1.0004 in/h", never "1.00 in/h", for a No Travel reading).
+Tests cover 24.99, 25, 34.99, 35, 44.99, 45, 54.99, 55 mph; 30000 vs 30001 lb; 40000 vs 40001 lb;
 rain 0.099/0.10/0.249/0.25/0.499/0.50/1.00/1.001; snow 0.49/0.5/0.99/1.0/1.99/2.0/3.0/3.001.
 
 ---
@@ -501,8 +507,9 @@ If there is no candidate: `route_id = null` and the explanation is
   50 locations per Open-Meteo call, at most 4 concurrent weather calls, with a 10-minute in-process
   TTL cache keyed by (rounded lat, lon, window, variables). Valhalla calls are sequential (one
   connection) with a 25 s timeout and one retry on connection errors only. One analysis may request
-  at most 450 checkpoint forecasts across its routes (`TRIP_TOO_LARGE` otherwise), which together
-  with the heatmap grid stays within Open-Meteo's 600 calls per minute.
+  at most 450 checkpoint forecasts across its routes (`TRIP_TOO_LARGE` otherwise). This is an
+  application performance and fair-use safeguard: it bounds the response size and analysis time
+  and keeps a single analysis a modest load on the free weather service.
 
 ---
 
@@ -635,7 +642,7 @@ Risks and mitigations:
 |---|---|---|---:|---:|
 | 0 | Preflight, spec, repo bootstrap | Merged (direct push, authorized) | 1.0 h | 0.5 h |
 | 1 | Project foundation and risk engine | Merged (squash, `5265147`) | 2.0 h | 0.5 h |
-| 2 | Routing, weather, recommendation backend | Ready for Codex Review | 4.0 h | 0.7 h |
+| 2 | Routing, weather, recommendation backend | Ready for Codex Review (round 2) | 4.0 h | 0.7 h |
 | 3 | React dashboard and interactive map | Not Started | 3.5 h | |
 | 4 | Weather heatmap and forecast slider | Not Started | 2.5 h | |
 | 5 | Production deployment and submission prep | Not Started | 2.5 h | |
@@ -719,8 +726,8 @@ Implementation summary:
   simplification, near-identical route detection), `routing/sampling.py`, `routing/eta.py`, and the
   Valhalla client (one request at a time, identifying User-Agent, 10-minute cache, 422/502/504
   mapping).
-- Weather: Open-Meteo client (units verified on every response with metric fallback, 3-decimal
-  rounding, batches of 50, at most 4 concurrent, per-place cache, horizon clamp), nearest-hour
+- Weather: Open-Meteo client (units verified on every response with metric fallback, values kept
+  at provider precision, batches of 50, at most 4 concurrent, per-place cache, horizon clamp), nearest-hour
   selection, geocoding proxy.
 - Risk: `risk/aggregation.py` and `risk/recommendation.py`, both pure.
 - Analysis: orchestration service, corridor heatmap, `POST /api/routes/analyze/`,
@@ -745,9 +752,16 @@ recommended.
 Not deployed: production still serves only the PR #1 health endpoint. Deploying the analysis
 endpoints is PR #5 scope and needs the FOSSGIS notification decision (D3) first.
 
+Review round 1 (2026-11-05): the GitHub Codex bot reviewed `981d23e` with no findings. An
+independent inspection raised one P2 finding, accepted: weather values were rounded to three
+decimals before classification, so 25.41 mm of rain (1.000394 in/h) was classified Severe instead
+of No Travel, and 54.99997 mph could be rounded up to 55. Fix: `weather/open_meteo.py` keeps
+provider precision (normalized to six decimals, rain and showers added first), unit factors are
+exact, and `risk/formatting.py` formats displayed measurements so they never contradict their band.
+Section 7 documents the rule. Backend suite: 382 passed (22 new tests at the rain, snow and wind
+thresholds, through the parser, the service and the API).
+
 Known issues and limits: caches and rate limits are per process (per warm instance on Vercel).
-Open-Meteo's pricing page does not state how multi-location requests are counted, so the
-450-forecast guard assumes one call per place.
 
 ### PR #3: React dashboard and interactive map
 
@@ -755,7 +769,8 @@ Branch `feat/pr3-dashboard-map`.
 Scope: trip planner form (autocomplete, datetime, load weight, interval), TanStack Query wiring,
 route comparison cards with recommended badge and No Travel warnings, MapLibre map with routes,
 checkpoints, selection, popups/detail panel, fit bounds, loading/empty/error states, responsive
-layout (375 px), attribution footer, demo-mode label. Vitest component tests.
+layout (375 px), attribution footer, and a prominent, persistent "simulated weather" label whenever
+demo mode is shown. Vitest component tests.
 Acceptance: full analysis through the UI against the local backend; route selection and checkpoint
 detail work; mobile layout verified with screenshots.
 
@@ -855,10 +870,12 @@ No credentials are required for the default plan.
 | 2026-11-05 | `distance_miles` is the haversine length; the provider total is `provider_distance_miles` | Risk mileage must add up to the length the checkpoints were placed on. |
 | 2026-11-05 | Heatmap cell size chosen against the cells kept near the routes, minimum 5 miles | Spends the 144-cell budget on the corridor: 23-mile cells for Denver to Kansas City instead of 28. |
 | 2026-11-05 | Forecast window requested as `start_date`/`end_date` padded one day and clamped to today + 15 | With `timezone=auto` the dates are local days; the API rejects later dates (verified). |
-| 2026-11-05 | Trip-size guard: at most 450 checkpoint forecasts per analysis (`TRIP_TOO_LARGE`) | Keeps one analysis within Open-Meteo's 600 calls per minute if each place counts as one call. |
+| 2026-11-05 | Trip-size guard: at most 450 checkpoint forecasts per analysis (`TRIP_TOO_LARGE`) | An application performance and fair-use safeguard: bounds response size and analysis time and keeps one analysis a modest load on the free weather service. Open-Meteo's own call accounting is more nuanced than one call per place. |
 | 2026-11-05 | Separate 504 codes per provider and per-client throttles (analyze 20/min, geocode 120/min) | Clearer client handling and protection for the public providers. |
 | 2026-11-05 | Explanation adds one sentence for a third eligible route | Never implies the winner is the fastest when a faster route lost on weather. |
 | 2026-11-05 | `tzdata` added as a dependency | DST-correct local UTC offsets at each ETA whatever zone database the host has. |
+| 2026-11-05 | Measurements are classified at provider precision (normalized to 6 decimals), replacing the 3-decimal rounding; display rounding is separate and band-aware | PR #2 review: 3-decimal rounding turned 1.000394 in/h (25.41 mm) into 1.000 and Severe instead of No Travel, and could round 54.99997 mph up to 55. |
+| 2026-11-05 | Oliver approved the scripted demo weather, the 450-forecast guard and the contract additions | PR #2 review. Follow-ups: PR #3 must show a prominent, persistent "simulated weather" label in demo mode; before production (PR #5) add Valhalla's identifying `X-Client-Id` header and arrange the provider notification with Oliver's approval. |
 
 ---
 
@@ -871,6 +888,7 @@ No credentials are required for the default plan.
 | 2026-11-05 | PR #1 Codex round 1 fix | 09:31 | 09:38 | 0.1 h | JSON handler404/handler500 + tests, redeploy |
 | 2026-11-05 | PR #1 Codex round 2 fix | 09:39 | 09:47 | 0.1 h | conclusive No Travel precedence over missing data, `missing` field, 8 tests, spec section 7 |
 | 2026-11-05 | Session handoff onboarding | 09:56 | 10:01 | 0.1 h | new session: repo, PR and identity checks, full test rerun, deployed health recheck |
-| 2026-11-05 | PR #1 merge + PR #2 analysis backend | 10:05 | 10:47 | 0.7 h | squash merge, provider probes, TDD routing/weather/risk/heatmap/API (291 new tests), live smoke test, docs, PR |
+| 2026-11-05 | PR #1 merge + PR #2 analysis backend | 10:05 | 10:41 | 0.6 h | squash merge, provider probes, TDD routing/weather/risk/heatmap/API (291 new tests), live smoke test, docs, PR |
+| 2026-11-05 | PR #2 review round 1 fix | 10:50 | 10:52 | 0.1 h | threshold precision: provider-precision classification, band-aware display, 22 tests, spec section 7 |
 
 Cumulative active time: 1.8 h of 16.0 h (14.2 h remain; PR #3 to #5 budgets unchanged).

@@ -512,3 +512,12 @@ def test_trip_needing_too_many_forecast_points_is_rejected_before_any_weather_re
 def test_the_same_long_trip_is_analyzed_at_a_larger_interval():
     result = run(*long_routes(), interval=25)
     assert [len(r["checkpoints"]) for r in result["routes"]] == [65, 65, 65]
+
+
+# ----------------------------------------------- threshold precision ------
+def test_rain_a_fraction_above_one_inch_per_hour_blocks_the_route_and_says_so():
+    # 25.41 mm of rain in the hour is 1.000394 in/h. Shown as "1.00" it would look allowed.
+    result = run(ROUTE_A, weather=FakeWeather(lambda lat, lon, hour: {"rain": 1.000394}))
+    assert result["routes"][0]["status"] == "blocked"
+    assert result["routes"][0]["checkpoints"][0]["weather"]["rain_in_per_hr"] == 1.000394
+    assert "(rain 1.0004 in/h)" in result["recommendation"]["explanation"]

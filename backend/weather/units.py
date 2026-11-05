@@ -19,9 +19,9 @@ def _scale(factor: float) -> Converter:
 WIND_TO_MPH: dict[str, Converter] = {
     "mp/h": _scale(1.0),
     "mph": _scale(1.0),
-    "km/h": _scale(0.621371),
-    "m/s": _scale(2.236936),
-    "kn": _scale(1.150779),
+    "km/h": _scale(1 / 1.609344),
+    "m/s": _scale(3600 / 1609.344),
+    "kn": _scale(1852 / 1609.344),
 }
 RAIN_TO_INCHES: dict[str, Converter] = {"inch": _scale(1.0), "mm": _scale(1 / 25.4)}
 SNOW_TO_INCHES: dict[str, Converter] = {"inch": _scale(1.0), "cm": _scale(1 / 2.54)}

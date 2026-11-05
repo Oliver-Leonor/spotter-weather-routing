@@ -32,7 +32,11 @@ HOURLY_VARIABLES = (
 BATCH_SIZE = 50
 MAX_CONCURRENT_REQUESTS = 4
 FORECAST_HORIZON_DAYS = 15  # the API accepts dates up to today (UTC) plus 15 days
-RISK_DECIMALS = 3
+# Measurements are normalized to six decimals: far finer than the provider's resolution (0.01 mm of
+# rain is 0.0004 in), so a real threshold crossing is never rounded away, yet coarse enough to
+# remove binary floating-point noise (0.01 + 0.09 is 0.09999999999999999, and 25.4 mm is
+# 0.9999999999999999 in). Rounding for display happens where values are shown, never here.
+PRECISION_DECIMALS = 6
 
 # About four full-size analyses. Each entry is one place's hourly series (tens of kilobytes).
 FORECAST_CACHE = TTLCache(ttl_seconds=600, max_entries=2048)
@@ -126,9 +130,11 @@ def parse_location(location: dict, fetched_at: datetime) -> HourlySeries:
             if required:
                 raise ValueError(f"Unexpected unit {units.get(name)!r} for {name}.")
             return (None,) * len(times)
+        return tuple(None if value is None else convert(float(value)) for value in values)
+
+    def normalized(values):
         return tuple(
-            None if value is None else round(convert(float(value)), RISK_DECIMALS)
-            for value in values
+            None if value is None else round(value, PRECISION_DECIMALS) for value in values
         )
 
     rain = column("rain", RAIN_TO_INCHES, required=True)
@@ -136,15 +142,15 @@ def parse_location(location: dict, fetched_at: datetime) -> HourlySeries:
     codes = hourly["weather_code"]
     return HourlySeries(
         times=times,
-        wind_mph=column("wind_speed_10m", WIND_TO_MPH, required=True),
-        wind_gust_mph=column("wind_gusts_10m", WIND_TO_MPH, required=False),
-        # Rain rate is rain plus showers. If either is unknown the rate is unknown, never partial.
-        rain_in_per_hr=tuple(
-            None if r is None or s is None else round(r + s, RISK_DECIMALS)
-            for r, s in zip(rain, showers, strict=True)
+        wind_mph=normalized(column("wind_speed_10m", WIND_TO_MPH, required=True)),
+        wind_gust_mph=normalized(column("wind_gusts_10m", WIND_TO_MPH, required=False)),
+        # Rain rate is rain plus showers, added at full precision. If either is unknown the rate
+        # is unknown, never partial.
+        rain_in_per_hr=normalized(
+            None if r is None or s is None else r + s for r, s in zip(rain, showers, strict=True)
         ),
-        snow_in_per_hr=column("snowfall", SNOW_TO_INCHES, required=True),
-        temperature_f=column("temperature_2m", TEMPERATURE_TO_F, required=False),
+        snow_in_per_hr=normalized(column("snowfall", SNOW_TO_INCHES, required=True)),
+        temperature_f=normalized(column("temperature_2m", TEMPERATURE_TO_F, required=False)),
         weather_code=tuple(None if code is None else int(code) for code in codes),
         timezone=location.get("timezone"),
         utc_offset_seconds=location.get("utc_offset_seconds"),

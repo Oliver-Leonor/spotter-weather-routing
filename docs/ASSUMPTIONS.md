@@ -58,8 +58,13 @@ application stops short of reality.
 - The API is asked for mph, inches and Fahrenheit, and the units it actually reports are checked on
   every response. Metric units are converted. An unrecognised unit on wind, rain, showers or
   snowfall rejects the response instead of guessing.
-- Risk measurements are rounded to three decimals before classification, so floating-point noise
-  cannot move a value across a threshold (0.01 + 0.09 inches is 0.1, not 0.09999999999999999).
+- Measurements are classified at the provider's precision. They are normalized to six decimals
+  only, which removes floating-point noise (0.01 + 0.09 inches is 0.10, and 25.4 mm is exactly
+  1.00 inch) without hiding a real threshold crossing: 25.41 mm of rain in the hour is 1.000394
+  in/h, which is above 1.00 and therefore No Travel. Rain and showers are added before any
+  normalization.
+- Rounding for display is separate. A displayed measurement keeps enough decimals to agree with
+  its risk band, so a No Travel reading of 1.000394 in/h is shown as "1.0004", never "1.00".
 - Forecast points are requested at coordinates rounded to three decimals (about 110 m).
 
 ## Risk classification
@@ -105,9 +110,9 @@ application stops short of reality.
 - Departure: no more than 1 hour in the past and no more than 14 days ahead.
 - Load weight: 0 to 200,000 lb, whole pounds.
 - One analysis may need at most 450 checkpoint forecasts across its routes. A longer trip at a
-  short interval is rejected with `TRIP_TOO_LARGE` and a suggestion to use a larger interval. With
-  the heatmap grid this keeps a single analysis within Open-Meteo's 600 calls per minute, counting
-  each place as one call.
+  short interval is rejected with `TRIP_TOO_LARGE` and a suggestion to use a larger interval. This
+  is an application performance and fair-use safeguard: it bounds the response size and analysis
+  time and keeps a single analysis a modest load on the free weather service.
 
 ## Provider fair use
 
